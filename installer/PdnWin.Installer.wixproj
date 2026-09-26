@@ -1,0 +1,16 @@
+<Project Sdk="WixToolset.Sdk/5.0.2">
+
+  <!-- The MSI: Program Files, a Start menu shortcut, upgrades in place. It carries the
+       framework-dependent single-file pdn-win.exe, which needs the .NET 10 Desktop Runtime.
+       Build it with build/build-release.ps1, which publishes the exe first (docs/releasing.md). -->
+  <PropertyGroup>
+    <OutputName>pdn-win</OutputName>
+    <InstallerPlatform>x64</InstallerPlatform>
+    <ProductVersion Condition="'$(ProductVersion)' == ''">0.0.1</ProductVersion>
+    <PublishDir Condition="'$(PublishDir)' == ''">$(MSBuildThisFileDirectory)..\publish\msi\</PublishDir>
+    <!-- Per-machine install: these ICEs assume the Start menu is per-user and misfire. -->
+    <SuppressIces>ICE38;ICE43;ICE57</SuppressIces>
+    <DefineConstants>ProductVersion=$(ProductVersion);PublishDir=$(PublishDir)</DefineConstants>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,26 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <!-- UpgradeCode must never change: it is how a new version finds and replaces the old one. -->
+  <Package Name="pdn-win" Manufacturer="Packet.NET" Version="$(var.ProductVersion)"
+           UpgradeCode="afea74a2-b78f-40d2-a4a9-2045c1b6cfe1" Scope="perMachine" Compressed="yes">
+    <SummaryInformation Description="pdn-win: Windows packet radio terminal" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of pdn-win is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="pdnwin.ico" SourceFile="$(sys.SOURCEFILEDIR)..\src\PdnWin\Assets\pdn-win.ico" />
+    <Property Id="ARPPRODUCTICON" Value="pdnwin.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/packet-net/pdn-win" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/packet-net/pdn-win/issues" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="pdn-win">
+        <Component Id="App">
+          <File Id="PdnWinExe" Source="$(var.PublishDir)pdn-win.exe" KeyPath="yes">
+            <Shortcut Id="PdnWinShortcut" Directory="ProgramMenuFolder" Name="pdn-win"
+                      Description="Packet radio terminal" WorkingDirectory="INSTALLFOLDER" />
+          </File>
+        </Component>
+      </Directory>
+    </StandardDirectory>
+  </Package>
+</Wix>

@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>pdn-win</AssemblyName>
+    <RootNamespace>PdnWin</RootNamespace>
+    <!-- The waterfall writes its bitmap through a pointer. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationIcon>Assets\pdn-win.ico</ApplicationIcon>
+    <Product>pdn-win</Product>
+    <Description>Windows packet radio terminal on packet.net and pdn-soundmodem</Description>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <!-- Referenced projects' XML docs are for the IDE, not the install. -->
+    <AllowedReferenceRelatedFileExtensions>.pdb</AllowedReferenceRelatedFileExtensions>
+    <!-- A framework-dependent build runs on a later .NET if 10 is not there. -->
+    <RollForward>Major</RollForward>
+    <!-- WPF's generated code and the MVVM toolkit's partial properties. -->
+    <NoWarn>$(NoWarn);CA1812</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\pdn-win.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PdnWin.Core\PdnWin.Core.csproj" />
+    <ProjectReference Include="$(PdnSoundModemRoot)\src\Packet.SoundModem.Windows\Packet.SoundModem.Windows.csproj" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Everything the app does that is not drawing: the station device seam and the in-process
+       soundmodem station, sessions over packet.net's listener, the monitor formatting, beacons,
+       the level advisor and settings. No WPF and no Windows APIs, so it is tested headless. -->
+
+  <PropertyGroup>
+    <RootNamespace>PdnWin.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Packet.Core" />
+    <PackageReference Include="Packet.Ax25" />
+    <ProjectReference Include="$(PdnSoundModemRoot)\src\Packet.SoundModem\Packet.SoundModem.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="PdnWin.Core.Tests" />
+  </ItemGroup>
+
+</Project>

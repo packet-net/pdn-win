@@ -1,0 +1,26 @@
+<Project>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <Version>0.0.0-dev</Version>
+    <Authors>Tom Fanning M0LTE and Packet.NET contributors</Authors>
+    <Company>Packet.NET</Company>
+    <Copyright>Copyright (c) 2026 Tom Fanning and Packet.NET contributors</Copyright>
+    <!-- Everything here is AGPL-3.0-or-later (see LICENSE). -->
+    <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Where the pdn-soundmodem checkout lives. The Windows audio/PTT library
+         (Packet.SoundModem.Windows) is developed alongside this app and is not published yet, so
+         the default is a sibling checkout: ..\pdn-soundmodem. Override with
+         -p:PdnSoundModemRoot=C:\path\to\pdn-soundmodem. -->
+    <PdnSoundModemRoot Condition="'$(PdnSoundModemRoot)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\pdn-soundmodem'))</PdnSoundModemRoot>
+  </PropertyGroup>
+
+</Project>
