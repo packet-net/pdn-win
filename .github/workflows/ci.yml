@@ -18,7 +18,7 @@ jobs:
         shell: pwsh
         working-directory: pdn-win
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: pdn-win
 
@@ -28,13 +28,13 @@ jobs:
         id: dep
         run: '"ref=$((Get-Content build/pdn-soundmodem.ref -Raw).Trim())" >> $env:GITHUB_OUTPUT'
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: packet-net/pdn-soundmodem
           ref: ${{ steps.dep.outputs.ref }}
           path: pdn-soundmodem
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
 

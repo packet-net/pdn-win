@@ -29,7 +29,7 @@ jobs:
         shell: pwsh
         working-directory: pdn-win
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           path: pdn-win
           fetch-depth: 0 # tags and history, for the release notes' previous-version link
@@ -38,13 +38,13 @@ jobs:
         id: dep
         run: '"ref=$((Get-Content build/pdn-soundmodem.ref -Raw).Trim())" >> $env:GITHUB_OUTPUT'
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           repository: packet-net/pdn-soundmodem
           ref: ${{ steps.dep.outputs.ref }}
           path: pdn-soundmodem
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
 
@@ -74,7 +74,7 @@ jobs:
 
       - name: Upload dry-run build
         if: github.ref_type != 'tag'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pdn-win-dry-run-${{ steps.version.outputs.version }}
           path: |
@@ -83,7 +83,7 @@ jobs:
 
       - name: Publish release
         if: github.ref_type == 'tag'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: ${{ steps.version.outputs.version }}
           body_path: pdn-win/notes.md

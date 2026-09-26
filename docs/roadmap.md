@@ -67,6 +67,18 @@ with the version it shipped in; when something is decided, write it here.
   on packet.net's `Packet.Aprs`. Likely a new pane (or pair of panes) beside Sessions. Later:
   position beaconing with a fixed position, and a map.
 
+### Links
+
+- **The Links view from pdn-soundmodem's station page**: packet.net's passive link observer
+  (`Ax25LinkObserver`) interpreting everything heard into one card per pair of stations, showing
+  connections as they are made, used and dropped, with each card's recent lines in classic monitor
+  decode. Filters for UI frames (beacons, idents, other unconnected traffic) and Mine (links this
+  station is one end of), and a transcript export per card as markdown. Our own lines carry the
+  station page's `HELD` tag when a frame waited for the channel, with what the wait was (`busy`,
+  `our tx`): in process the channel reports this directly (`FrameTransmittedWithReport`), which is
+  exactly what a KISS host cannot see and why a run of repeated polls is a channel-access story
+  rather than a failing link. A pane of its own, beside or instead of the Monitor.
+
 ### Sessions and terminal
 
 - **Digipeated connects** (`C GB7XX V GB7YY`): needs a digipeater path on packet.net's
@@ -83,6 +95,24 @@ with the version it shipped in; when something is decided, write it here.
 - Waterfall controls: span, speed, a manual level range beside Auto, and a visible line for our
   own transmissions.
 - Constellation pane for the PSK modes (pdn-soundmodem has `ConstellationSource`).
+
+### pdn-lin: a Linux port and front-end
+
+- **The same app on Linux.** `PdnWin.Core` was kept free of WPF and Windows APIs for this: the
+  station seam, the in-process soundmodem station, sessions, monitor formatting, the level advisor,
+  beacons, settings and the simulator all run on Linux as they are, and pdn-soundmodem already has
+  the Linux hardware side (ALSA capture and playback with the upsampler, `Cm108Ptt` over hidraw,
+  `SerialPtt`, and `AlsaMixer` for levels with AGC and mic boost forced off).
+- **What it needs**: a front-end (Avalonia is the likely choice: MIT, .NET, runs on both), Linux
+  interface discovery (group the ALSA card, hidraw node and tty that share a USB device, via sysfs,
+  as `RadioInterfaces` does by container ID on Windows), and the level and hygiene rules applied
+  through the ALSA mixer instead of Windows endpoints.
+- **Decision to make first**: a separate `pdn-lin` front-end sharing the core (and ideally the view
+  models, moved into a shared UI-neutral project), or one Avalonia front-end for both platforms that
+  replaces the WPF one. Either way the view models and the docking model should move out of the WPF
+  project before the second front-end is written, not after.
+- Packaging: a `.deb` alongside pdn-soundmodem's, and perhaps a Raspberry Pi build for a
+  shack-side terminal.
 
 ### Platform
 
