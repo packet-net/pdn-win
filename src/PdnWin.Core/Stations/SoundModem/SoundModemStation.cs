@@ -4,6 +4,7 @@ using M0LTE.Dsp;
 using M0LTE.Radio.Audio;
 using Packet.Ax25.Transport;
 using Packet.SoundModem.Audio;
+using Packet.SoundModem.CarrierSense;
 using Packet.SoundModem.Channel;
 using Packet.SoundModem.Dsp;
 using Packet.SoundModem.Modems;
@@ -68,6 +69,9 @@ public sealed class SoundModemStation :
     private readonly int _waterfallLinesPerSecond;
     private readonly double _maxTxTestSeconds;
     private readonly IReadOnlyList<string> _modes;
+
+    // Carrier sense from the shape of the receiver's audio, fed at the card's rate. See Build.
+    private readonly FmShapeBusyDetector? _carrierSense;
     private volatile Pipeline _pipeline;
     private ChannelAccess _access;
     private double? _centre;
@@ -88,6 +92,8 @@ public sealed class SoundModemStation :
         _modes = options.Modes ?? ModemCatalog.KnownModes;
         _meter = new InputLevelMeter(_time);
         _transport = new StationTransport(this);
+        int cardRate = card.Input.SampleRate;
+        _carrierSense = cardRate >= FmShapeBusyDetector.MinimumSampleRate ? new FmShapeBusyDetector(cardRate) : null;
         _pipeline = Build(options.Mode);
 
         _rxPump = new Thread(ReceivePump) { IsBackground = true, Name = "soundmodem-rx" };
@@ -285,7 +291,15 @@ public sealed class SoundModemStation :
                 $"the card runs at {cardRate} Hz in and {_card.Output.SampleRate} Hz out; {name} needs a multiple of {dspRate} Hz both ways");
         }
 
-        var channel = new SoundModemChannel(dspRate, _time, audioFallback: true);
+        // Carrier sense is the station's receiver, not the mode: one shape detector for the life of
+        // the station, fed the card's own audio before it is decimated. The modes run at 12 kHz,
+        // and the channel's built-in audio fallback only engages at 48 kHz and above, so left to
+        // itself it would fall back to the in-band energy detector, which on an open-squelch FM
+        // radio reads clear through every transmission and busy for about ten seconds after it.
+        // Measured on air with GB7RDG and M9YYY-9 exchanging frames: our replies held 5 to 18 s,
+        // and with frames arriving every few seconds, never sent at all. Where the detector has no
+        // opinion (warming up, a dead or an additive path) the energy detector still answers.
+        var channel = new SoundModemChannel(dspRate, _time, channelBusySource: _carrierSense, audioFallback: _carrierSense is null);
         Apply(channel.Csma, _access);
         double? centre = ModemCatalog.AcceptsCentreFrequency(name) ? _centre : null;
         channel.AddModem(0, sink => ModemCatalog.Create(name, dspRate, sink, new ModemOptions(CentreFrequencyHz: centre)));
@@ -385,6 +399,7 @@ public sealed class SoundModemStation :
 
                 ReadOnlySpan<float> raw = block.AsSpan(0, got);
                 _meter.AddCardSamples(raw);
+                _carrierSense?.Process(raw);
 
                 Pipeline pipeline = _pipeline;
                 ReadOnlySpan<float> audio = raw;
