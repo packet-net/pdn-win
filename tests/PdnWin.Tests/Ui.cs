@@ -22,8 +22,18 @@ public sealed class Ui : IDisposable
 {
     private readonly HeadlessUnitTestSession _session = HeadlessUnitTestSession.StartNew(typeof(TestAppBuilder));
 
-    /// <summary>Runs <paramref name="test"/> on the UI thread.</summary>
-    public Task Run(Func<Task> test) => _session.Dispatch(test, CancellationToken.None);
+    /// <summary>Runs <paramref name="test"/> on the UI thread, to the end.</summary>
+    /// <remarks>Through the overload for a task with a result, which pumps the UI thread until
+    /// the task is done. Given the <see cref="Func{Task}"/> itself, <c>Dispatch</c> takes it as a
+    /// function returning a value: what it returns is done at the test's first await, and an
+    /// assertion after that fails unseen.</remarks>
+    public Task Run(Func<Task> test) => _session.Dispatch(
+        async () =>
+        {
+            await test();
+            return true;
+        },
+        CancellationToken.None);
 
     /// <summary>Lets the UI thread catch up: bindings, layout, posted work.</summary>
     public static void Settle() => Dispatcher.UIThread.RunJobs();
