@@ -35,10 +35,9 @@ stack.
 
 ## Build and run
 
-Requires the .NET 10 SDK and a checkout of pdn-soundmodem beside this one (`..\pdn-soundmodem`)
-at the commit in `build/pdn-soundmodem.ref` or later: the Windows audio library,
-`src/Packet.SoundModem.Windows`, is not yet published as a package. Point elsewhere with
-`-p:PdnSoundModemRoot=...`.
+Requires the .NET 10 SDK. pdn-soundmodem comes from NuGet (`pdn-soundmodem` and
+`pdn-soundmodem-windows`). To work on both at once, build against a local checkout with
+`-p:PdnSoundModemRoot=C:\path\to\pdn-soundmodem`.
 
 ```
 dotnet build

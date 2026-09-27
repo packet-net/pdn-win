@@ -16,23 +16,8 @@ jobs:
     defaults:
       run:
         shell: pwsh
-        working-directory: pdn-win
     steps:
       - uses: actions/checkout@v7
-        with:
-          path: pdn-win
-
-      # pdn-soundmodem's Windows library is not a published package yet, so it is built from a
-      # checkout beside this one, at the commit pinned in build/pdn-soundmodem.ref.
-      - name: Read pinned pdn-soundmodem commit
-        id: dep
-        run: '"ref=$((Get-Content build/pdn-soundmodem.ref -Raw).Trim())" >> $env:GITHUB_OUTPUT'
-
-      - uses: actions/checkout@v7
-        with:
-          repository: packet-net/pdn-soundmodem
-          ref: ${{ steps.dep.outputs.ref }}
-          path: pdn-soundmodem
 
       - uses: actions/setup-dotnet@v6
         with:

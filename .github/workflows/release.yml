@@ -27,22 +27,10 @@ jobs:
     defaults:
       run:
         shell: pwsh
-        working-directory: pdn-win
     steps:
       - uses: actions/checkout@v7
         with:
-          path: pdn-win
           fetch-depth: 0 # tags and history, for the release notes' previous-version link
-
-      - name: Read pinned pdn-soundmodem commit
-        id: dep
-        run: '"ref=$((Get-Content build/pdn-soundmodem.ref -Raw).Trim())" >> $env:GITHUB_OUTPUT'
-
-      - uses: actions/checkout@v7
-        with:
-          repository: packet-net/pdn-soundmodem
-          ref: ${{ steps.dep.outputs.ref }}
-          path: pdn-soundmodem
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -78,14 +66,14 @@ jobs:
         with:
           name: pdn-win-dry-run-${{ steps.version.outputs.version }}
           path: |
-            pdn-win/dist/
-            pdn-win/notes.md
+            dist/
+            notes.md
 
       - name: Publish release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v3
         with:
           name: ${{ steps.version.outputs.version }}
-          body_path: pdn-win/notes.md
-          files: pdn-win/dist/*
+          body_path: notes.md
+          files: dist/*
           fail_on_unmatched_files: true

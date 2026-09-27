@@ -52,14 +52,24 @@ build without publishing and uploads the assets and `notes.md` as a workflow art
 changing anything in `build/`, `installer/` or the workflow. Locally, `./build/build-release.ps1
 -Version x.y.z` produces the same files in `dist/`.
 
-## pdn-soundmodem
+## When pdn-soundmodem changed too (the cascade)
 
-The Windows audio and PTT library is built from pdn-soundmodem source, not a package, at the
-commit in `build/pdn-soundmodem.ref`. CI and releases check that commit out beside this repository.
-When a release needs a newer pdn-soundmodem, update the ref (a commit on its `main` once the work
-is merged) in its own commit, and say so in the changelog if operators will notice. Once
-`pdn-soundmodem-windows` is published to NuGet this becomes an ordinary package reference and this
-section goes.
+pdn-win takes pdn-soundmodem from NuGet: `pdn-soundmodem` and `pdn-soundmodem-windows`, published
+together on one version by pdn-soundmodem's own `v*` release, pinned in `Directory.Packages.props`.
+When a pdn-win release needs a pdn-soundmodem change, the order is forced, because each link is a
+real NuGet restore:
+
+1. **pdn-soundmodem**: merge the change, check its `ci` run on the merge commit on `main` is green
+   (investigate a red, do not re-run it away), then tag the next `v0.N.0` (list the tags with
+   `sort -V`, never guess) and watch its `release` workflow push both packages.
+2. **Wait for nuget.org to index** the new version of both packages (a restore against an
+   unindexed version 404s): `https://api.nuget.org/v3-flatcontainer/pdn-soundmodem-windows/index.json`
+   lists it when it is ready.
+3. **Here**: bump both pins in `Directory.Packages.props` in one commit, build and test, push, and
+   let CI go green. Then carry on from Step 2 above.
+
+While developing across both repos, build here with `-p:PdnSoundModemRoot=C:\path\to\pdn-soundmodem`
+to use the checkout instead of the packages; never commit anything that depends on that.
 
 ## Rules
 

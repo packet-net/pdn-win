@@ -27,15 +27,18 @@ Notes for anyone (human or agent) changing pdn-win. The README says what it does
 - **[docs/roadmap.md](docs/roadmap.md) is the one list of done and outstanding work.** Move items
   to Done with the version they shipped in; add decisions as they are made.
 - CI and releases run on GitHub-hosted `windows-latest` (public repo, WPF needs Windows, the org's
-  self-hosted runners are Linux). pdn-soundmodem is checked out at the commit in
-  `build/pdn-soundmodem.ref` until its Windows package is published.
+  self-hosted runners are Linux).
+- pdn-soundmodem is a NuGet dependency (`pdn-soundmodem`, `pdn-soundmodem-windows`, one version).
+  A change needing both repos is a cascade: pdn-soundmodem release first, wait for indexing, then
+  bump the pins here (docs/releasing.md).
 
 ## Where things are
 
 - `PdnWin.Core` has no WPF and no Windows APIs. Keep it that way; it is tested headless,
   including end to end over simulated audio (`SoundModemStationTests`).
 - The Windows audio and PTT code lives upstream in pdn-soundmodem, `src/Packet.SoundModem.Windows`,
-  referenced from the sibling checkout (`PdnSoundModemRoot`). Fix Windows audio problems there.
+  published as `pdn-soundmodem-windows`. Fix Windows audio problems there; build this repo with
+  `-p:PdnSoundModemRoot=...` to try a fix before it is released.
 - `SessionManager` routes everything by the peer's callsign, because packet.net's listener raises
   `SessionAccepted` for outbound connects too and can deliver data before `ConnectAsync` returns.
 

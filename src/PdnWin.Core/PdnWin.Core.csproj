@@ -11,7 +11,8 @@
   <ItemGroup>
     <PackageReference Include="Packet.Core" />
     <PackageReference Include="Packet.Ax25" />
-    <ProjectReference Include="$(PdnSoundModemRoot)\src\Packet.SoundModem\Packet.SoundModem.csproj" />
+    <PackageReference Include="pdn-soundmodem" Condition="'$(PdnSoundModemRoot)' == ''" />
+    <ProjectReference Include="$(PdnSoundModemRoot)\src\Packet.SoundModem\Packet.SoundModem.csproj" Condition="'$(PdnSoundModemRoot)' != ''" />
   </ItemGroup>
 
   <ItemGroup>

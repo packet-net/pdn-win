@@ -12,7 +12,8 @@ with the version it shipped in; when something is decided, write it here.
   (p-persistent CSMA, PTT, drain before unkey), mode changes without dropping sessions. Proven
   end to end in tests over simulated real-time audio, and on air.
 - **Windows audio and PTT**, upstream in pdn-soundmodem as `Packet.SoundModem.Windows`
-  (packet-net/pdn-soundmodem#536): WASAPI capture and render, CM108/AIOC HID PTT (serial PTT via
+  (packet-net/pdn-soundmodem#536), published to NuGet as `pdn-soundmodem-windows` from
+  pdn-soundmodem v0.81.0 and consumed here as a package: WASAPI capture and render, CM108/AIOC HID PTT (serial PTT via
   the core's `SerialPtt`), radio interface discovery by container ID, endpoint levels capped at
   0 dB, and endpoint hygiene (enhancements, AGC, monitor path, Listen, spatial sound).
 - **FM modes** for a handheld on mic and speaker: afsk1200 (plain, multi, IL2P+CRC, FX.25) and
@@ -116,8 +117,6 @@ with the version it shipped in; when something is decided, write it here.
 
 ### Platform
 
-- **Publish `pdn-soundmodem-windows`** from pdn-soundmodem's release pipeline, then reference the
-  package here instead of a pinned source checkout.
 - **Code signing** for the MSI and exe, so SmartScreen does not warn.
 - **Update check** against the GitHub releases.
 

@@ -15,12 +15,10 @@
     <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression>
   </PropertyGroup>
 
-  <PropertyGroup>
-    <!-- Where the pdn-soundmodem checkout lives. The Windows audio/PTT library
-         (Packet.SoundModem.Windows) is developed alongside this app and is not published yet, so
-         the default is a sibling checkout: ..\pdn-soundmodem. Override with
-         -p:PdnSoundModemRoot=C:\path\to\pdn-soundmodem. -->
-    <PdnSoundModemRoot Condition="'$(PdnSoundModemRoot)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\pdn-soundmodem'))</PdnSoundModemRoot>
-  </PropertyGroup>
+  <!-- pdn-soundmodem comes from NuGet (pdn-soundmodem and pdn-soundmodem-windows, pinned in
+       Directory.Packages.props). To build against a local checkout while changing both repos at
+       once, pass -p:PdnSoundModemRoot=C:\path\to\pdn-soundmodem, the same pattern as
+       pdn-soundmodem's own FlexSourcePath: the two package references become project
+       references. Unset, which is what CI and releases do, the pinned packages are used. -->
 
 </Project>

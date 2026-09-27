@@ -4,6 +4,11 @@
     <PackageVersion Include="Packet.Core" Version="0.41.0" />
     <PackageVersion Include="Packet.Ax25" Version="0.41.0" />
 
+    <!-- pdn-soundmodem: the modem core (GPL-3.0-or-later) and its Windows audio/PTT backends
+         (AGPL-3.0-or-later), released together on one version. -->
+    <PackageVersion Include="pdn-soundmodem" Version="0.81.0" />
+    <PackageVersion Include="pdn-soundmodem-windows" Version="0.81.0" />
+
     <!-- MVVM source generators for the WPF app. MIT. -->
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
 
