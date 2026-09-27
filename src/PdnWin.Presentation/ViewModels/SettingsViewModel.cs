@@ -10,10 +10,11 @@ using PdnWin.Hosting;
 namespace PdnWin.ViewModels;
 
 /// <summary>The settings dialog.</summary>
-public sealed partial class SettingsViewModel : ObservableObject
+public sealed partial class SettingsViewModel : ObservableObject, IDisposable
 {
     private readonly AppSettings _original;
     private readonly IStationHardware? _hardware;
+    private readonly IUiThread? _ui;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanSave))]
@@ -81,12 +82,18 @@ public sealed partial class SettingsViewModel : ObservableObject
     private string _scanResult = string.Empty;
 
     /// <summary>Loads the dialog from <paramref name="settings"/>, finding interfaces through
-    /// <paramref name="hardware"/> (null where the platform has none yet).</summary>
-    public SettingsViewModel(AppSettings settings, IStationHardware? hardware)
+    /// <paramref name="hardware"/> (null where the platform has none yet). With
+    /// <paramref name="ui"/>, the list rescans itself when an interface is plugged in or out.</summary>
+    public SettingsViewModel(AppSettings settings, IStationHardware? hardware, IUiThread? ui = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         _original = settings;
         _hardware = hardware;
+        _ui = ui;
+        if (hardware is not null && ui is not null)
+        {
+            hardware.DevicesChanged += OnDevicesChanged;
+        }
         _myCall = settings.MyCall;
         _ptt = settings.Interface.Ptt;
         _gpio = settings.Interface.Gpio;
@@ -134,6 +141,7 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
 
         Scanning = true;
+        string? keep = SelectedInterface?.Key;
         try
         {
             DiscoveryResult found = await _hardware.DiscoverAsync(_original.Interface);
@@ -150,7 +158,10 @@ public sealed partial class SettingsViewModel : ObservableObject
                 SerialPorts.Add(port);
             }
 
-            SelectedInterface = found.Current
+            // What the operator had chosen, if it is still there; else the stored one; else the
+            // first radio interface.
+            SelectedInterface = Interfaces.FirstOrDefault(i => i.Key == keep)
+                ?? found.Current
                 ?? Interfaces.FirstOrDefault(i => i.IsRadio)
                 ?? Interfaces.FirstOrDefault();
         }
@@ -163,6 +174,23 @@ public sealed partial class SettingsViewModel : ObservableObject
             Scanning = false;
         }
     }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        if (_hardware is not null && _ui is not null)
+        {
+            _hardware.DevicesChanged -= OnDevicesChanged;
+        }
+    }
+
+    private void OnDevicesChanged() => _ui?.Post(() =>
+    {
+        if (!Scanning)
+        {
+            _ = ScanAsync();
+        }
+    });
 
     partial void OnSelectedInterfaceChanged(InterfaceOption? value)
     {

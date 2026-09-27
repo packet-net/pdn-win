@@ -126,7 +126,7 @@ public partial class MainWindow : Window
 
     private void OpenSettings()
     {
-        var dialog = new SettingsWindow(_model.Settings, _model.Hardware) { Owner = this };
+        var dialog = new SettingsWindow(_model.CreateSettings()) { Owner = this };
         if (dialog.ShowDialog() == true && dialog.Result is { } settings)
         {
             _ = _model.ApplySettingsAsync(settings);

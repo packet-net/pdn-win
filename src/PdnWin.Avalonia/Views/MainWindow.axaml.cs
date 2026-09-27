@@ -197,7 +197,7 @@ public partial class MainWindow : Window
 
     private async void OpenSettings()
     {
-        var dialog = new SettingsWindow(_model.Settings, _model.Hardware);
+        var dialog = new SettingsWindow(_model.CreateSettings());
         if (await dialog.ShowDialog<bool>(this) && dialog.Result is { } settings)
         {
             await _model.ApplySettingsAsync(settings);

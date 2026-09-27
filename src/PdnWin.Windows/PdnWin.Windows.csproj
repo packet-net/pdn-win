@@ -8,6 +8,8 @@
 
   <PropertyGroup>
     <RootNamespace>PdnWin.Hardware</RootNamespace>
+    <!-- The device watcher's configuration manager callback is a function pointer. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

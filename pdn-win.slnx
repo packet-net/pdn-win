@@ -3,6 +3,7 @@
     <Project Path="src/PdnWin.Core/PdnWin.Core.csproj" />
     <Project Path="src/PdnWin.Presentation/PdnWin.Presentation.csproj" />
     <Project Path="src/PdnWin.Windows/PdnWin.Windows.csproj" />
+    <Project Path="src/PdnWin.Linux/PdnWin.Linux.csproj" />
     <Project Path="src/PdnWin/PdnWin.csproj" />
     <Project Path="src/PdnWin.Avalonia/PdnWin.Avalonia.csproj" />
   </Folder>

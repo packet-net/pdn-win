@@ -1,7 +1,6 @@
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 using PdnWin.Core.Settings;
-using PdnWin.Hosting;
 using PdnWin.ViewModels;
 
 namespace PdnWin.Ava.Views;
@@ -13,15 +12,16 @@ public partial class SettingsWindow : Window
 
     /// <summary>For the XAML loader.</summary>
     public SettingsWindow()
-        : this(new AppSettings(), null)
+        : this(new SettingsViewModel(new AppSettings(), null))
     {
     }
 
-    /// <summary>Opens the dialog on <paramref name="settings"/>.</summary>
-    public SettingsWindow(AppSettings settings, IStationHardware? hardware)
+    /// <summary>Opens the dialog on <paramref name="model"/>, which it disposes on closing.</summary>
+    public SettingsWindow(SettingsViewModel model)
     {
         AvaloniaXamlLoader.Load(this);
-        _model = new SettingsViewModel(settings, hardware);
+        _model = model;
+        Closed += (_, _) => model.Dispose();
         DataContext = _model;
         this.FindControl<Button>("Cancel")!.Click += (_, _) => Close(false);
         this.FindControl<Button>("Save")!.Click += (_, _) =>

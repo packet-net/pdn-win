@@ -24,9 +24,11 @@ public partial class App : Application
             string? settingsPath = Environment.GetEnvironmentVariable("PDNWIN_SETTINGS");
             SettingsStore store = string.IsNullOrWhiteSpace(settingsPath) ? SettingsStore.Default : new SettingsStore(settingsPath);
 
-            // The Windows hardware layer on Windows; nothing yet elsewhere, where only the
-            // simulator runs (the Linux layer is the next piece of the port).
-            IStationHardware? hardware = OperatingSystem.IsWindows() ? new WindowsStationHardware() : null;
+            // The hardware layer for the machine: WASAPI and HID on Windows, ALSA and hidraw on
+            // Linux. Anywhere else (macOS builds, but has no layer yet) only the simulator runs.
+            IStationHardware? hardware = OperatingSystem.IsWindows() ? new WindowsStationHardware()
+                : OperatingSystem.IsLinux() ? new LinuxStationHardware()
+                : null;
             var model = new MainViewModel(store, new AvaloniaUiThread(), hardware) { Simulate = simulate, DemoScript = args.Contains("--demo", StringComparer.OrdinalIgnoreCase) ? MainViewModel.DefaultDemo : null };
             desktop.MainWindow = new Views.MainWindow(model);
             Snapshots.StartIfRequested();

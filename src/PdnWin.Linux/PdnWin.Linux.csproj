@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The station hardware on Linux: ALSA capture and playback and CM108 (hidraw) or serial PTT
+       through the pdn-soundmodem core, interface discovery, access checks, mixer hygiene and
+       levels and hot-plug through pdn-soundmodem-linux, behind PdnWin.Presentation's
+       IStationHardware. No UI framework, and plain net10.0 with the Linux-only surface marked, as
+       PdnWin.Windows is for Windows, so the one front-end references both and calls the one that
+       matches the machine. -->
+
+  <PropertyGroup>
+    <RootNamespace>PdnWin.Hardware</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PdnWin.Presentation\PdnWin.Presentation.csproj" />
+    <PackageReference Include="pdn-soundmodem-linux" Condition="'$(PdnSoundModemRoot)' == ''" />
+    <ProjectReference Include="$(PdnSoundModemRoot)\src\Packet.SoundModem.Linux\Packet.SoundModem.Linux.csproj" Condition="'$(PdnSoundModemRoot)' != ''" />
+    <PackageReference Include="System.IO.Ports" />
+  </ItemGroup>
+
+</Project>

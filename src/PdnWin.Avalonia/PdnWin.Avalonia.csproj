@@ -26,6 +26,7 @@
     <PackageReference Include="CommunityToolkit.Mvvm" />
     <ProjectReference Include="..\PdnWin.Presentation\PdnWin.Presentation.csproj" />
     <ProjectReference Include="..\PdnWin.Windows\PdnWin.Windows.csproj" />
+    <ProjectReference Include="..\PdnWin.Linux\PdnWin.Linux.csproj" />
   </ItemGroup>
 
 </Project>

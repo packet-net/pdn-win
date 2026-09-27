@@ -61,6 +61,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private ILevelControl? _rxLevel;
     private ILevelControl? _txLevel;
     private bool _retryArmed;
+    private string? _lastFault;
     private DateTime _clipUntil;
     private bool _applyingLevels;
     private bool _starting;
@@ -178,11 +179,23 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
         _fast = ui.StartTimer(TimeSpan.FromMilliseconds(100), FastTick);
         _slow = ui.StartTimer(TimeSpan.FromSeconds(5), Heard.Tick);
-        _retry = ui.StartTimer(TimeSpan.FromSeconds(3), () => _ = RetryAsync());
+
+        // A station waiting for its interface retries the moment a device arrives, and on a slow
+        // timer as well in case a notification is missed (or a fix is not a device at all, such
+        // as a udev rule taking effect).
+        _retry = ui.StartTimer(TimeSpan.FromSeconds(10), () => _ = RetryAsync());
+        if (hardware is not null)
+        {
+            hardware.DevicesChanged += OnDevicesChanged;
+        }
     }
 
-    /// <summary>The hardware this front-end runs on, for the settings dialog; null where there is none.</summary>
+    /// <summary>The hardware this front-end runs on; null where there is none.</summary>
     public IStationHardware? Hardware => _hardware;
+
+    /// <summary>A settings dialog's model over the stored settings, which rescans for interfaces
+    /// as they come and go. The dialog disposes it.</summary>
+    public SettingsViewModel CreateSettings() => new(Settings, _hardware, _ui);
 
     /// <summary>What is stored.</summary>
     public AppSettings Settings { get; private set; }
@@ -386,6 +399,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         ConfigureBeacon();
 
         Sessions.Online = true;
+        _lastFault = null;
         Status = StationStatus.Live;
         StatusText = $"{InterfaceName} - {station.Mode} - {Settings.MyCall}";
         Sessions.Console.Note($"station on the air as {Settings.MyCall}, {station.Mode} on {InterfaceName}");
@@ -455,6 +469,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         _fast.Dispose();
         _slow.Dispose();
         _retry.Dispose();
+        if (_hardware is not null)
+        {
+            _hardware.DevicesChanged -= OnDevicesChanged;
+        }
+
         _beacon.Dispose();
         await StopAsync();
     }
@@ -703,11 +722,20 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
+    private void OnDevicesChanged() => OnUi(() => _ = RetryAsync());
+
     private void Fault(string text, bool retry)
     {
+        // Once in the console per fault, not once per retry: a station waiting for its interface
+        // would otherwise say so every few seconds for as long as it waits.
+        if (text != _lastFault)
+        {
+            Sessions.Console.Note(text);
+            _lastFault = text;
+        }
+
         Status = StationStatus.Fault;
         StatusText = text;
-        Sessions.Console.Note(text);
         _retryArmed = retry;
     }
 

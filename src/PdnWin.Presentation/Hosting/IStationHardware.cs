@@ -57,11 +57,18 @@ public sealed record DiscoveryResult(
 
 /// <summary>
 /// The platform's radio interfaces: finding them, putting their audio settings right, opening
-/// them. Windows has one (WASAPI, HID PTT, endpoint hygiene); a Linux one (ALSA, hidraw, sysfs
-/// discovery) is the next to write. A front-end without one can still run the simulator.
+/// them. Windows has one (WASAPI, HID PTT, endpoint hygiene) and Linux has one (ALSA, hidraw,
+/// sysfs discovery, mixer hygiene). A front-end without one can still run the simulator.
 /// </summary>
 public interface IStationHardware
 {
+    /// <summary>
+    /// Raised, on any thread, once a burst of devices arriving or leaving has settled: an
+    /// interface plugged in or pulled out. A station waiting for its interface retries on it, and
+    /// the settings dialog rescans.
+    /// </summary>
+    event Action? DevicesChanged;
+
     /// <summary>Finds the interfaces present.</summary>
     Task<DiscoveryResult> DiscoverAsync(InterfaceSettings current, CancellationToken cancellationToken = default);
 

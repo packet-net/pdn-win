@@ -12,6 +12,17 @@ namespace PdnWin.Hardware;
 /// </summary>
 public sealed class WindowsStationHardware : IStationHardware
 {
+    private readonly WindowsDeviceWatcher _watcher = new();
+
+    /// <summary>Starts watching for interfaces arriving and leaving.</summary>
+    public WindowsStationHardware()
+    {
+        _watcher.Changed += () => DevicesChanged?.Invoke();
+    }
+
+    /// <inheritdoc />
+    public event Action? DevicesChanged;
+
     /// <inheritdoc />
     public async Task<DiscoveryResult> DiscoverAsync(InterfaceSettings current, CancellationToken cancellationToken = default)
     {

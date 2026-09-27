@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=pdn-lin
+GenericName=Packet radio terminal
+Comment=AX.25 packet radio terminal with a built-in soundcard modem
+Exec=pdn-lin
+Icon=pdn-lin
+Terminal=false
+Categories=HamRadio;Network;
+Keywords=packet;ax25;amateur;radio;aioc;cm108;soundmodem;

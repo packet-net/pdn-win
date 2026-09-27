@@ -10,11 +10,12 @@ public partial class SettingsWindow : Window
 {
     private readonly SettingsViewModel _model;
 
-    /// <summary>Opens the dialog on <paramref name="settings"/>.</summary>
-    public SettingsWindow(AppSettings settings, Hosting.IStationHardware? hardware)
+    /// <summary>Opens the dialog on <paramref name="model"/>, which it disposes on closing.</summary>
+    public SettingsWindow(SettingsViewModel model)
     {
         InitializeComponent();
-        _model = new SettingsViewModel(settings, hardware);
+        _model = model;
+        Closed += (_, _) => model.Dispose();
         DataContext = _model;
         _model.PropertyChanged += OnChanged;
         Loaded += async (_, _) =>
