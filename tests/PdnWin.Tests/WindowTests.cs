@@ -5,6 +5,7 @@ using PdnWin.App.Controls;
 using PdnWin.App.Views;
 using PdnWin.Core;
 using PdnWin.Core.Settings;
+using PdnWin.Hosting;
 using PdnWin.ViewModels;
 
 namespace PdnWin.Tests;
@@ -99,6 +100,92 @@ public sealed class WindowTests(Ui ui) : IDisposable
     });
 
     [Fact]
+    public Task The_settings_say_what_saving_will_do_to_the_station() => ui.Run(() =>
+    {
+        var stored = new AppSettings { MyCall = "M0LTE", Interface = new InterfaceSettings { ContainerId = "aioc", CaptureEndpointId = "in", RenderEndpointId = "out" } };
+        var idle = new SettingsViewModel(stored, null);
+        var running = new SettingsViewModel(stored, null) { StationRunning = true };
+        var window = new SettingsWindow(running);
+        window.Show();
+        Ui.Settle();
+
+        try
+        {
+            idle.SaveEffect.Should().Be("Saving starts the station.");
+            SaveLine(window).Should().Be("Saving applies these to the running station.");
+
+            running.BeaconText = "{MYCALL} on the air";
+            running.TxDelayMs = 500;
+            running.Mode = "qpsk3600";
+            Ui.Settle();
+            SaveLine(window).Should().Be("Saving applies these to the running station.");
+
+            running.MyCall = "M0LTE-1";
+            Ui.Settle();
+            SaveLine(window).Should().Be("Saving restarts the station, which drops any connected sessions.");
+        }
+        finally
+        {
+            window.Close();
+        }
+
+        return Task.CompletedTask;
+    });
+
+    [Fact]
+    public Task Saving_settings_changes_a_running_station_and_restarts_it_only_for_a_new_callsign() => ui.Run(async () =>
+    {
+        var model = new MainViewModel(Store(new AppSettings()), new AvaloniaUiThread(), hardware: null) { Simulate = true };
+        await model.StartAsync();
+
+        try
+        {
+            model.Status.Should().Be(StationStatus.Live);
+            await model.ApplySettingsAsync(model.Settings with
+            {
+                Beacon = model.Settings.Beacon with { Text = "changed" },
+                Sessions = model.Settings.Sessions with { WelcomeText = "Hello" },
+            });
+            Ui.Settle();
+            OnTheAir(model).Should().Be(1, "a beacon or welcome text change is taken as the station runs");
+
+            await model.ApplySettingsAsync(model.Settings with { MyCall = "M0LTE-5" });
+            Ui.Settle();
+            OnTheAir(model).Should().Be(2, "the station is opened with its callsign");
+            model.Status.Should().Be(StationStatus.Live);
+        }
+        finally
+        {
+            await model.DisposeAsync();
+        }
+    });
+
+    [Fact]
+    public Task A_start_asked_for_while_one_is_under_way_happens_after_it_rather_than_being_lost() => ui.Run(async () =>
+    {
+        var stored = new AppSettings { MyCall = "M0LTE", Interface = new InterfaceSettings { CaptureEndpointId = "in", RenderEndpointId = "out" } };
+        var hardware = new SlowHardware();
+        var model = new MainViewModel(Store(stored), new AvaloniaUiThread(), hardware);
+
+        try
+        {
+            Task first = model.StartAsync();
+            hardware.Opens.Should().Be(1, "the first start is waiting for the interface");
+
+            await model.StartAsync();
+            hardware.Opens.Should().Be(1, "the second waits for the first");
+
+            hardware.Gate.SetResult();
+            await first;
+            hardware.Opens.Should().Be(2, "the first start read the settings before the second was asked for");
+        }
+        finally
+        {
+            await model.DisposeAsync();
+        }
+    });
+
+    [Fact]
     public Task The_tone_test_says_how_long_it_sends_for() => ui.Run(() =>
     {
         var pane = new LevelHelperPane();
@@ -124,10 +211,40 @@ public sealed class WindowTests(Ui ui) : IDisposable
             .Single(c => Avalonia.Automation.AutomationProperties.GetAutomationId(c) == automationId)
             .IsEffectivelyVisible;
 
+    private static string? SaveLine(Window window) =>
+        window.GetVisualDescendants().OfType<TextBlock>()
+            .Single(t => Avalonia.Automation.AutomationProperties.GetAutomationId(t) == "SaveEffect").Text;
+
+    private static int OnTheAir(MainViewModel model) =>
+        model.Sessions.Console.Lines.Count(l => l.Text.StartsWith("*** station on the air", StringComparison.Ordinal));
+
     private static bool SerialRowVisible(Window window) =>
         window.GetVisualDescendants().OfType<ComboBox>()
             .Single(c => Avalonia.Automation.AutomationProperties.GetName(c) == "Serial port")
             .IsEffectivelyVisible;
+
+    // An interface that takes as long to open as the test says, and then is not there.
+    private sealed class SlowHardware : IStationHardware
+    {
+        public event Action? DevicesChanged { add { } remove { } }
+
+        public TaskCompletionSource Gate { get; } = new();
+
+        public int Opens { get; private set; }
+
+        public Task<DiscoveryResult> DiscoverAsync(InterfaceSettings current, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new DiscoveryResult([], null, string.Empty, []));
+
+        public InterfaceSettings Suggest(InterfaceOption option, InterfaceSettings previous) => previous;
+
+        public async Task<OpenedInterface?> OpenAsync(
+            InterfaceSettings settings, Action<string> note, Action<Exception> faulted, CancellationToken cancellationToken = default)
+        {
+            Opens++;
+            await Gate.Task;
+            return null;
+        }
+    }
 
     private SettingsStore Store(AppSettings settings)
     {

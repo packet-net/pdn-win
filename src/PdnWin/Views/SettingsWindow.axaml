@@ -63,9 +63,9 @@
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
                     <Button Content="Cancel" x:Name="Cancel" Padding="16,5" IsCancel="True" />
-                    <Button Content="Save and restart" x:Name="Save" Classes="accent" Padding="16,5" IsEnabled="{Binding CanSave}" IsDefault="True" />
+                    <Button Content="Save" x:Name="Save" Classes="accent" Padding="16,5" IsEnabled="{Binding CanSave}" IsDefault="True" />
                 </StackPanel>
-                <TextBlock Text="Saving restarts the station." Classes="hint" VerticalAlignment="Center" Margin="0" />
+                <TextBlock Text="{Binding SaveEffect}" Classes="hint" VerticalAlignment="Center" Margin="0" AutomationProperties.AutomationId="SaveEffect" />
             </DockPanel>
         </Border>
 
@@ -148,15 +148,7 @@
                             <TextBox Text="{Binding TxTailMs}" Width="50" TextAlignment="Right" />
                             <TextBlock Text="ms" Classes="label" Margin="6,0,0,0" />
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Persistence" Classes="label" Width="110" />
-                            <TextBox Text="{Binding Persistence}" Width="60" TextAlignment="Right" />
-                            <TextBlock Text="/255" Classes="label" Margin="6,0,24,0" />
-                            <TextBlock Text="Slot time" Classes="label" />
-                            <TextBox Text="{Binding SlotTimeMs}" Width="50" TextAlignment="Right" />
-                            <TextBlock Text="ms" Classes="label" Margin="6,0,0,0" />
-                        </StackPanel>
-                        <TextBlock Classes="hint" Margin="110,0,0,0" Text="TXDELAY is keyup to data. Handhelds take longer to come up than mobiles; 400 ms is a safe start for a Quansheng." />
+                        <TextBlock Classes="hint" Margin="110,0,0,0" Text="TXDELAY is keyup to data. Handhelds take longer to come up than mobiles; 400 ms is a safe start for a Quansheng. Persistence and slot time are the channel's, the same for every station on it, so they are fixed at the usual 63 and 100 ms." />
                     </StackPanel>
                 </Border>
 

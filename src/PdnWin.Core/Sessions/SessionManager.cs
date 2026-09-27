@@ -60,6 +60,7 @@ public sealed class SessionManager : IAsyncDisposable
     private readonly Dictionary<Callsign, Owner> _owners = [];
     private readonly List<PacketSession> _sessions = [];
     private readonly TimeProvider _time;
+    private int _paclen;
 
     /// <summary>Builds the manager; nothing happens on air until <see cref="StartAsync"/>.</summary>
     public SessionManager(IAx25Transport transport, SessionOptions options, TimeProvider? time = null)
@@ -80,6 +81,8 @@ public sealed class SessionManager : IAsyncDisposable
         });
         _listener.AcceptIncoming = options.AcceptIncoming;
         _listener.SessionAccepted += OnAccepted;
+        WelcomeText = options.WelcomeText;
+        Paclen = options.Paclen;
     }
 
     /// <summary>Our callsign.</summary>
@@ -102,6 +105,20 @@ public sealed class SessionManager : IAsyncDisposable
     {
         get => _listener.AcceptIncoming;
         set => _listener.AcceptIncoming = value;
+    }
+
+    /// <summary>Sent to a station that connects to us, from the next one on; null or empty sends nothing.</summary>
+    public string? WelcomeText { get; set; }
+
+    /// <summary>The most information bytes per I-frame, from the next line sent.</summary>
+    public int Paclen
+    {
+        get => _paclen;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
+            _paclen = value;
+        }
     }
 
     /// <summary>Raised when a session starts a new link, outgoing or incoming: when it is created,
@@ -170,9 +187,10 @@ public sealed class SessionManager : IAsyncDisposable
         }
 
         byte[] bytes = Encoding.Latin1.GetBytes(text + "\r");
-        for (int offset = 0; offset < bytes.Length; offset += _options.Paclen)
+        int paclen = Paclen;
+        for (int offset = 0; offset < bytes.Length; offset += paclen)
         {
-            int length = Math.Min(_options.Paclen, bytes.Length - offset);
+            int length = Math.Min(paclen, bytes.Length - offset);
             _listener.SendData(link, bytes.AsMemory(offset, length));
         }
 
@@ -290,9 +308,9 @@ public sealed class SessionManager : IAsyncDisposable
 
         session.SetState(LinkState.Connected);
         Note(session, $"{MonitorFormatter.Callsign(peer)} connected to us");
-        if (!string.IsNullOrWhiteSpace(_options.WelcomeText))
+        if (WelcomeText is { } welcome && !string.IsNullOrWhiteSpace(welcome))
         {
-            foreach (string line in _options.WelcomeText.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n'))
+            foreach (string line in welcome.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n'))
             {
                 Send(session, line);
             }

@@ -5,6 +5,31 @@ with the version it shipped in; when something is decided, write it here.
 
 ## Done
 
+### Unreleased (on branch feedback/0.2.1)
+
+- **Carrier sense, found and fixed.** The replies held on air (6.5 s on the Linux run, and 5 to
+  18 s while GB7RDG and M9YYY-9 exchanged frames, with some never sent) were the channel's energy
+  detector, which on an open-squelch FM receiver reads the reverse of the truth: clear through a
+  transmission (the carrier quiets the noise) and busy for about ten seconds after it. The shape
+  detector meant for FM (`FmShapeBusyDetector`) needs 48 kHz audio, and the modes run at 12 kHz,
+  so the channel's own fallback to it never engaged. The station now keeps one shape detector for
+  its life, fed the card's audio before decimation, as the channel's busy source; the energy
+  detector answers only where the shape detector has no opinion. On air afterwards, replies went
+  within about a second.
+- **Settings apply as they can.** From the operator's feedback that "Save and restart" did not
+  visibly restart anything: the station is opened with its callsign and interface, and only a
+  change to those restarts it (`AppSettings.NeedsRestartFor`, used by the dialog to say what
+  saving will do and by the main window to do it). Mode, TXDELAY, TXTAIL, accept-incoming,
+  welcome text, paclen and the beacon change on the running station, keeping its sessions. A
+  start asked for while one was under way used to be dropped (a save during the wait for an
+  interface did nothing); it now runs after.
+- **Persistence and slot time fixed** at 63 and 100 ms, out of the dialog and normalised on load.
+  They are the channel's convention: a station that shortens its slot or raises its persistence
+  takes the channel from the others, and a slot of nothing would turn the busy wait into a spin.
+- **The UI tests test.** `Ui.Run` handed Avalonia's headless `Dispatch` a `Func<Task>`, which it
+  took as a function returning a value, so an async UI test finished at its first await and any
+  assertion after that went unseen. It now uses the overload that pumps until the task is done.
+
 ### 0.2.0 (pdn-lin: the same app on Linux)
 
 - **One front-end for both platforms.** The WPF app is retired; the app is Avalonia 12 over view
@@ -26,10 +51,11 @@ with the version it shipped in; when something is decided, write it here.
   hidraw PTT) the same. The Linux run found three things: a busy card was named by thread rather
   than process, which would also have kept the PipeWire fallback from recognising PipeWire (fixed
   upstream, packet-net/pdn-soundmodem#542); a UA and the I-frame behind it handed up in the wrong
-  order (packet-net/pdn-soundmodem#543); and a reply held by carrier sense (below).
+  order (packet-net/pdn-soundmodem#543); and a reply held by carrier sense (found and fixed
+  after, above).
 - **HELD on our own frames.** The monitor shows how long one of our frames waited for the channel
   and why ("HELD 6.5s", "held: 6.5s channel busy on ch0") when it waited a second or more, from
-  the channel's own report. It is what made the carrier sense question above answerable.
+  the channel's own report. It is what made the carrier sense question answerable.
 - **Hot-plug, done and exercised.** The station reacts to interfaces arriving (inotify on `/dev`
   on Linux, configuration manager notifications on Windows) rather than polling, and the settings
   dialog rescans itself. Unplugged and replugged under a running station (usbip): on Linux it went
@@ -79,6 +105,15 @@ with the version it shipped in; when something is decided, write it here.
 
 ### Hardware and radios
 
+- **M9YYY-9 does not hear us.** The bench pico-node (a NinoTNC, low power) and GB7RDG hear each
+  other, we hear the pico (its SABMs at about 7 dB SNR) and GB7RDG hears us; but the pico has never
+  answered us, directly or dialling back through GB7RDG, where our UAs went within a second of its
+  SABMs. Our audio level at 0 and -10 dB changed deviation, not RF level: over-deviation looks
+  unlikely (GB7RDG lost us only at -20 dB), and the RF side (overload at bench distance) is
+  untested. What would decide it: whether GB7RDG's 2 m modem is a NinoTNC (then our waveform is
+  fine and it is the path) or pdn-soundmodem (then qpsk3600 from pdn-soundmodem into a NinoTNC is
+  untried, and the suspect); what the pico's NinoTNC makes of our frames; and a try with the
+  Quansheng on low power or further away.
 - **NinoTNC** (FM first, then HF, below). An `IStationDevice` over packet.net's
   `Packet.Kiss.NinoTnc` (`NinoTncSerialPort`: port discovery by USB ID 04D8:00DD, `SetModeAsync`),
   with the mode picker driving the TNC's mode switches. It has no spectrum or input level, so those
@@ -141,11 +176,6 @@ with the version it shipped in; when something is decided, write it here.
 
 ### pdn-lin, and other platforms
 
-- **Carrier sense holding replies on air.** On the Linux run a reply to GB7RDG waited 6.5 s with
-  "channel busy on ch0" while nothing decodable was on the channel. The audio path is not it: the
-  same detector over 30 s of idle channel from the same AIOC gives the same reference (31.1 dB on
-  Linux, 31.2 dB on Windows) and no false busy on either. So it was something the detector heard
-  (another station, a tail); the HELD tags will say how often, and against what.
 - **Raspberry Pi.** The arm64 `.deb` is built and checked but not yet run on a Pi: the waterfall
   at 30 lines a second plus qpsk3600 on a Pi 4 or 5, possibly with software rendering, is the
   question.
@@ -188,3 +218,9 @@ with the version it shipped in; when something is decided, write it here.
 - packet.net node `SoundModemFrameTransport` appears (from reading only) to pass monitor-only
   frames up to its session layer.
 - Keep an off-air qpsk3600 capture from the next GB7RDG session as a pdn-soundmodem fixture.
+- packet.net connects send XID and SABM interleaved (the 2.2 MDL runs beside the DL), so a
+  connect nobody answers costs twice the airtime of a plain SABM dial.
+- pdn-soundmodem's daemon, with a channel under 48 kHz, falls back to the energy detector and
+  says so, naming a control cable to the radio as the fix. Feeding the shape detector the card's
+  audio before decimation, as this app now does, would fix it without one; worth checking what
+  GB7RDG's own replies wait for.

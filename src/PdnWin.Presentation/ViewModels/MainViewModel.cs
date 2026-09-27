@@ -65,6 +65,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private DateTime _clipUntil;
     private bool _applyingLevels;
     private bool _starting;
+    private bool _startAgain;
     private volatile bool _transmittingNow;
     private int _generation;
 
@@ -201,7 +202,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     /// <summary>A settings dialog's model over the stored settings, which rescans for interfaces
     /// as they come and go. The dialog disposes it.</summary>
-    public SettingsViewModel CreateSettings() => new(Settings, _hardware, _ui);
+    public SettingsViewModel CreateSettings() => new(Settings, _hardware, _ui) { StationRunning = Running };
 
     /// <summary>What is stored.</summary>
     public AppSettings Settings { get; private set; }
@@ -254,15 +255,35 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     /// <summary>Raised when the operator asks for the level helper; the view shows the pane.</summary>
     public event Action? LevelHelperRequested;
 
-    /// <summary>Puts the station on the air with the stored settings.</summary>
+    /// <summary>Puts the station on the air with the stored settings, taking it off first if it
+    /// is on. Asked while a start is under way, it starts again once that one is done: that one
+    /// read the settings before whatever made this call changed them.</summary>
     public async Task StartAsync()
     {
         if (_starting)
         {
+            _startAgain = true;
             return;
         }
 
         _starting = true;
+        try
+        {
+            do
+            {
+                _startAgain = false;
+                await StartOnceAsync();
+            }
+            while (_startAgain);
+        }
+        finally
+        {
+            _starting = false;
+        }
+    }
+
+    private async Task StartOnceAsync()
+    {
         int generation = ++_generation;
         try
         {
@@ -330,10 +351,6 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             await StopAsync();
             Fault(ex.Message, retry: false);
         }
-        finally
-        {
-            _starting = false;
-        }
     }
 
     private async Task StartSimulatedAsync(int generation)
@@ -396,7 +413,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         {
             MyCall = Callsign.Parse(Settings.MyCall),
             AcceptIncoming = Settings.Sessions.AcceptIncoming,
-            WelcomeText = Settings.Sessions.WelcomeText.Replace("{MYCALL}", Settings.MyCall, StringComparison.OrdinalIgnoreCase),
+            WelcomeText = Welcome(),
             Paclen = Settings.Sessions.Paclen,
         });
         sessions.SessionOpened += session => OnUi(() => Sessions.Attach(session, OnUi));
@@ -456,14 +473,35 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
-    /// <summary>Stores new settings and restarts the station with them.</summary>
+    /// <summary>
+    /// Stores new settings and puts them into effect. A running station takes them as it runs,
+    /// keeping its sessions, unless they change what it was opened with (see
+    /// <see cref="AppSettings.NeedsRestartFor"/>); then it is restarted, and a station that is not
+    /// running is started.
+    /// </summary>
     public async Task ApplySettingsAsync(AppSettings settings)
     {
+        ArgumentNullException.ThrowIfNull(settings);
+        AppSettings before = Settings;
+        bool running = Running;
         Save(settings);
         MyCall = settings.MyCall;
-        SelectedMode = Modes.FirstOrDefault(m => m.Mode == settings.Modem.Mode) ?? SelectedMode;
+        if (running && !before.NeedsRestartFor(settings) && _station is { } station && _sessions is { } sessions)
+        {
+            SelectMode(settings.Modem.Mode);
+            station.SetChannelAccess(settings.Modem.ChannelAccess);
+            sessions.AcceptIncoming = settings.Sessions.AcceptIncoming;
+            sessions.WelcomeText = Welcome();
+            sessions.Paclen = settings.Sessions.Paclen;
+            ConfigureBeacon();
+            return;
+        }
+
         Levels.Reset();
         await StartAsync();
+
+        // After the start, which used the stored mode, so the old station is not switched on its way out.
+        SelectMode(settings.Modem.Mode);
     }
 
     /// <summary>Remembers the dock layout and window placement.</summary>
@@ -753,6 +791,13 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             Sessions.Console.Note(notice.Text);
         }
     }
+
+    /// <summary>Whether the station is on the air: settings then change it as it runs.</summary>
+    private bool Running => Status == StationStatus.Live && _station is not null && _sessions is not null;
+
+    private void SelectMode(string mode) => SelectedMode = Modes.FirstOrDefault(m => m.Mode == mode) ?? SelectedMode;
+
+    private string Welcome() => Settings.Sessions.WelcomeText.Replace("{MYCALL}", Settings.MyCall, StringComparison.OrdinalIgnoreCase);
 
     private void ConfigureBeacon() => _beacon.Configure(BeaconFromSettings());
 

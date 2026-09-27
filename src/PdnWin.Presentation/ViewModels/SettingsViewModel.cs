@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Packet.Core;
@@ -15,6 +16,10 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     private readonly AppSettings _original;
     private readonly IStationHardware? _hardware;
     private readonly IUiThread? _ui;
+
+    // The selected interface as the hardware resolves it: worked out when the choice changes, not
+    // each time Build runs (which is on every edit, for SaveEffect).
+    private InterfaceSettings? _resolved;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanSave))]
@@ -44,12 +49,6 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private int _txDelayMs;
-
-    [ObservableProperty]
-    private int _persistence;
-
-    [ObservableProperty]
-    private int _slotTimeMs;
 
     [ObservableProperty]
     private int _txTailMs;
@@ -103,8 +102,6 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         _mode = settings.Modem.Mode;
         ChannelAccess a = settings.Modem.ChannelAccess;
         _txDelayMs = a.TxDelayMs;
-        _persistence = a.Persistence;
-        _slotTimeMs = a.SlotTimeMs;
         _txTailMs = a.TxTailMs;
         _acceptIncoming = settings.Sessions.AcceptIncoming;
         _welcomeText = settings.Sessions.WelcomeText;
@@ -129,6 +126,16 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
 
     /// <summary>Whether enough is filled in to save.</summary>
     public bool CanSave => Callsign.TryParse(MyCall.Trim().ToUpperInvariant(), out _) && SelectedInterface is not null;
+
+    /// <summary>Whether the station is on the air, and so what saving does to it.</summary>
+    public bool StationRunning { get; init; }
+
+    /// <summary>What saving will do to the station, as the settings stand: the same rule the main
+    /// window applies (<see cref="AppSettings.NeedsRestartFor"/>).</summary>
+    public string SaveEffect =>
+        !StationRunning ? "Saving starts the station."
+        : _original.NeedsRestartFor(Build()) ? "Saving restarts the station, which drops any connected sessions."
+        : "Saving applies these to the running station.";
 
     /// <summary>Finds the interfaces present and selects the configured one, or the first radio one.</summary>
     [RelayCommand]
@@ -160,10 +167,17 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
 
             // What the operator had chosen, if it is still there; else the stored one; else the
             // first radio interface.
-            SelectedInterface = Interfaces.FirstOrDefault(i => i.Key == keep)
+            InterfaceOption? choice = Interfaces.FirstOrDefault(i => i.Key == keep)
                 ?? found.Current
                 ?? Interfaces.FirstOrDefault(i => i.IsRadio)
                 ?? Interfaces.FirstOrDefault();
+            if (Equals(choice, SelectedInterface))
+            {
+                // Unchanged, so OnSelectedInterfaceChanged will not run; the device's paths may have.
+                _resolved = Resolve(choice);
+            }
+
+            SelectedInterface = choice;
         }
         catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or InvalidOperationException or System.ComponentModel.Win32Exception)
         {
@@ -192,15 +206,28 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
         }
     });
 
+    /// <inheritdoc />
+    protected override void OnPropertyChanged(PropertyChangedEventArgs e)
+    {
+        base.OnPropertyChanged(e);
+        if (e.PropertyName != nameof(SaveEffect))
+        {
+            OnPropertyChanged(nameof(SaveEffect));
+        }
+    }
+
+    private InterfaceSettings? Resolve(InterfaceOption? option) =>
+        option is not null && _hardware is not null ? _hardware.Suggest(option, _original.Interface) : null;
+
     partial void OnSelectedInterfaceChanged(InterfaceOption? value)
     {
-        if (value is null || _hardware is null || _original.Interface.ContainerId == value.Key)
+        _resolved = Resolve(value);
+        if (value is null || _resolved is not { } suggested || _original.Interface.ContainerId == value.Key)
         {
             return;
         }
 
         // A different device: take its suggested PTT.
-        InterfaceSettings suggested = _hardware.Suggest(value, _original.Interface);
         Ptt = suggested.Ptt;
         SerialPort = suggested.SerialPort ?? SerialPort;
         SerialDtr = suggested.SerialDtr;
@@ -210,9 +237,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
     /// <summary>The settings as edited.</summary>
     public AppSettings Build()
     {
-        InterfaceSettings iface = SelectedInterface is { } choice && _hardware is not null
-            ? _hardware.Suggest(choice, _original.Interface)
-            : _original.Interface;
+        InterfaceSettings iface = _resolved ?? _original.Interface;
         iface = iface with
         {
             Ptt = Ptt,
@@ -229,8 +254,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable
             Modem = _original.Modem with
             {
                 Mode = Mode,
-                ChannelAccess = new ChannelAccess(
-                    Math.Clamp(TxDelayMs, 10, 2550), Math.Clamp(Persistence, 0, 255), Math.Clamp(SlotTimeMs, 10, 2550), Math.Clamp(TxTailMs, 0, 2550)),
+                ChannelAccess = new ChannelAccess(TxDelayMs: Math.Clamp(TxDelayMs, 10, 2550), TxTailMs: Math.Clamp(TxTailMs, 0, 2550)),
             },
             Sessions = _original.Sessions with
             {
