@@ -7,7 +7,7 @@
 # Produces <outdir>/pdn-lin_<version>_<arch>.deb and <outdir>/pdn-lin-<version>-linux-<arch>.tar.gz
 # from a self-contained single-file build (no .NET runtime needed on the target), with a desktop
 # entry and icons, the udev rule that lets the operator key a CM108 or AIOC and open its serial
-# port, and the WirePlumber rule that keeps the desktop's sound server off the AIOC.
+# port, and the WirePlumber (0.5) rule that keeps the desktop's sound server off the AIOC.
 #
 # Layout, as pdn-soundmodem's .deb: PublishSingleFile leaves the native libraries (SkiaSharp,
 # HarfBuzzSharp, System.IO.Ports) loose beside the executable and .NET finds them relative to the
@@ -67,7 +67,7 @@ mkdir -p "$STAGE/root$PKGDIR" "$STAGE/root/usr/bin" "$STAGE/root$DOCDIR" "$STAGE
          "$STAGE/root/usr/share/applications" \
          "$STAGE/root/usr/lib/udev/rules.d" \
          "$STAGE/root/usr/share/wireplumber/wireplumber.conf.d" \
-         "$STAGE/root/usr/share/wireplumber/main.lua.d"
+         "$STAGE/root$DOCDIR/examples"
 
 install -m 0755 "$EXE" "$STAGE/root$PKGDIR/$EXENAME"
 for so in "$STAGE"/publish/*.so; do
@@ -84,7 +84,10 @@ for png in "$HERE"/icons/*.png; do
 done
 install -m 0644 "$HERE/70-pdn-lin.rules" "$STAGE/root/usr/lib/udev/rules.d/70-pdn-lin.rules"
 install -m 0644 "$HERE/50-pdn-lin.conf" "$STAGE/root/usr/share/wireplumber/wireplumber.conf.d/50-pdn-lin.conf"
-install -m 0644 "$HERE/51-pdn-lin.lua" "$STAGE/root/usr/share/wireplumber/main.lua.d/51-pdn-lin.lua"
+# WirePlumber 0.5 and later read the .conf. 0.4's Lua rule is not installed where 0.4 would read
+# it: 0.5 warns at every start about any file in main.lua.d, which would be noise on every current
+# distribution. It is an example to copy by hand; without it, a 0.4 system goes through PipeWire.
+install -m 0644 "$HERE/51-pdn-lin.lua" "$STAGE/root$DOCDIR/examples/51-pdn-lin.lua"
 install -m 0644 "$HERE/copyright" "$STAGE/root$DOCDIR/copyright"
 
 case "${SOURCE_DATE_EPOCH:-}" in
@@ -178,7 +181,8 @@ Description: AX.25 packet radio terminal with a built-in soundcard modem
  .
  Installs a udev rule giving the logged-in user and the audio group the
  CM108 and AIOC PTT (hidraw) nodes and the AIOC's serial port, and a
- WirePlumber rule that keeps the desktop's sound server off the AIOC.
+ WirePlumber 0.5 rule that keeps the desktop's sound server off the AIOC
+ (the WirePlumber 0.4 version is in /usr/share/doc/pdn-lin/examples).
  .
  AGPL-3.0-or-later.
 EOF

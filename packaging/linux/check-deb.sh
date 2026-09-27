@@ -32,7 +32,13 @@ need 'usr/share/applications/pdn-lin\.desktop$' 'desktop entry'
 need 'usr/share/icons/hicolor/256x256/apps/pdn-lin\.png$' 'icon'
 need 'usr/lib/udev/rules\.d/70-pdn-lin\.rules$' 'udev rule (CM108 and AIOC PTT)'
 need 'usr/share/wireplumber/wireplumber\.conf\.d/50-pdn-lin\.conf$' 'WirePlumber 0.5 rule'
-need 'usr/share/wireplumber/main\.lua\.d/51-pdn-lin\.lua$' 'WirePlumber 0.4 rule'
+need 'usr/share/doc/pdn-lin/examples/51-pdn-lin\.lua$' 'WirePlumber 0.4 example'
+
+# Nothing where WirePlumber 0.4 reads Lua: 0.5 warns about any file there at every start.
+if grep -qE 'usr/share/wireplumber/main\.lua\.d/' <<<"$listing"; then
+  echo "::error::$NAME installs into main.lua.d, which WirePlumber 0.5 complains about at every start"
+  failed=1
+fi
 
 # build-deb.sh reads the libc6 floor out of the binaries; an unversioned libc6 means that came
 # unstuck, and apt would install onto machines whose loader then refuses the program.

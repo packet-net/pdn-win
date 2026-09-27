@@ -2,7 +2,14 @@
 -- directly: nothing between the modem and the converter, and no "device busy". The AIOC is only
 -- ever a radio interface, so this cannot take anyone's headset away.
 --
--- WirePlumber 0.4 (Debian 12, Ubuntu 22.04 and 24.04). 0.5 reads the .conf beside this instead.
+-- WirePlumber 0.4 only (Debian 12, Ubuntu 22.04 and 24.04); 0.5 reads the .conf the package
+-- installs. The package does not put this where 0.4 looks, because 0.5 warns about anything there
+-- at every start. On a 0.4 system, to let pdn-lin have the AIOC directly rather than through
+-- PipeWire:
+--
+--   mkdir -p ~/.config/wireplumber/main.lua.d
+--   cp /usr/share/doc/pdn-lin/examples/51-pdn-lin.lua ~/.config/wireplumber/main.lua.d/
+--   systemctl --user restart wireplumber
 table.insert(alsa_monitor.rules, {
   matches = {
     {

@@ -24,7 +24,8 @@ three jobs on GitHub-hosted runners:
    `packaging/linux/build-deb.sh x.y.z amd64|arm64`, checking each with `check-deb.sh`:
    - `pdn-lin_x.y.z_amd64.deb`, `pdn-lin_x.y.z_arm64.deb`: self-contained, into
      `/usr/lib/pdn-lin` with `/usr/bin/pdn-lin`, a desktop entry and icons, the udev rule (CM108
-     and AIOC PTT, the AIOC's serial port) and the WirePlumber rules (0.5 and 0.4). Their libc6
+     and AIOC PTT, the AIOC's serial port) and the WirePlumber 0.5 rule (0.4's is an example in
+     `/usr/share/doc/pdn-lin/examples`, because 0.5 warns about Lua files). Their libc6
      and libstdc++6 floors are read from the binaries.
    - `pdn-lin-x.y.z-linux-x64.tar.gz`, `pdn-lin-x.y.z-linux-arm64.tar.gz`: the same payload, the
      rules in `rules/`.

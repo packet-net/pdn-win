@@ -138,11 +138,13 @@ with the version it shipped in; when something is decided, write it here.
 - **Raspberry Pi.** The arm64 `.deb` is built and checked but not yet run on a Pi: the waterfall
   at 30 lines a second plus qpsk3600 on a Pi 4 or 5, possibly with software rendering, is the
   question.
-- **PipeWire on a real desktop.** The WirePlumber rule (0.5 `.conf`, 0.4 `.lua`) and the fallback
-  through `pipewire:NODE=` are written against PipeWire's documented properties but have not met a
-  desktop that holds an AIOC; the test machine's Linux has no PipeWire running. Check on a GNOME
-  or KDE desktop: the rule leaves the AIOC out of the sound settings, and with the rule removed,
-  the station goes through PipeWire and says so.
+- **PipeWire on a real desktop.** The WirePlumber 0.5 rule and the fallback through
+  `pipewire:NODE=` are written against PipeWire's documented properties but have not met a desktop
+  that holds an AIOC: under WSL, WirePlumber manages no sound cards at all (no logind seat), so it
+  proved nothing either way. Check on a GNOME or KDE desktop: the rule leaves the AIOC out of the
+  sound settings, and with the rule removed, the station goes through PipeWire and says so. (What
+  WSL did show: WirePlumber 0.5 warns at every start about a Lua file in `main.lua.d`, so the 0.4
+  rule ships as an example to copy, not installed.)
 - **A per-device "leave this interface alone" for CM108 dongles.** The packaged rule covers the
   AIOC only, because a C-Media chip is as likely to be someone's headset; the app could write a
   WirePlumber rule for the one interface the operator chose.
