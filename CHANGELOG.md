@@ -16,7 +16,10 @@ same station, from the packet-net apt repository (`sudo apt install pdn-lin`) or
   path closed) and its levels are the sliders. The package lets you key the radio without root
   and keeps the desktop's sound server off the AIOC. If something still holds the card, pdn-lin
   says what, and goes through PipeWire when it is PipeWire. Anything it cannot open is named,
-  with the fix, before the station starts.
+  with the fix, before the station starts. Tried on air to GB7RDG from Linux and from Windows.
+- **Why a frame waited.** One of your frames that waited a second or more for the channel says so in
+  the monitor, with how long and why ("HELD 6.5s", "held: 6.5s channel busy"): the usual reason a
+  link retried.
 - **Plug and unplug.** A station waiting for its interface comes up the moment it is plugged in,
   on Windows and Linux, and the settings dialog's list updates by itself. Unplugging a running
   interface stops the station and it waits, saying so once rather than every few seconds.

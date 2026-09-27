@@ -54,6 +54,9 @@ public sealed record SoundModemStationOptions
 public sealed class SoundModemStation :
     IStationDevice, ISpectrumFeature, IInputLevelFeature, IModeFeature, ITxTestFeature, IChannelAccessFeature
 {
+    /// <summary>How long one of our frames must have waited for the channel to be shown as held.</summary>
+    private static readonly TimeSpan HoldWorthShowing = TimeSpan.FromSeconds(1);
+
     private readonly ISoundCard _card;
     private readonly TimeProvider _time;
     private readonly Channel<Ax25InboundFrame> _inbound = Channel.CreateUnbounded<Ax25InboundFrame>();
@@ -291,8 +294,8 @@ public sealed class SoundModemStation :
             _inbound.Writer.TryWrite(new Ax25InboundFrame(frame, 0, _time.GetUtcNow()));
         channel.FrameReceivedWithQuality += (_, frame, quality) =>
             FrameHeard?.Invoke(new HeardFrame(_time.GetUtcNow(), FrameDirection.Received, frame, Describe(quality)));
-        channel.FrameTransmitted += (_, frame) =>
-            FrameHeard?.Invoke(new HeardFrame(_time.GetUtcNow(), FrameDirection.Transmitted, frame));
+        channel.FrameTransmittedWithReport += (_, frame, report) =>
+            FrameHeard?.Invoke(new HeardFrame(_time.GetUtcNow(), FrameDirection.Transmitted, frame, Hold: Held(report)));
         channel.TransmittingChanged += keyed => TransmittingChanged?.Invoke(keyed);
         channel.PttFailed += ex => Notice?.Invoke(new StationNotice(NoticeLevel.Error, "PTT failed: " + ex.Message));
         channel.TransmitRejected += (_, _, ex) =>
@@ -337,6 +340,13 @@ public sealed class SoundModemStation :
         csma.SlotTimeMilliseconds = access.SlotTimeMs;
         csma.TxTailMilliseconds = access.TxTailMs;
     }
+
+    /// <summary>
+    /// A wait worth telling the operator about: long enough that the far end may have given up on
+    /// hearing it (a peer's T1 is a few seconds), and so the likeliest reason a link retried.
+    /// </summary>
+    private static TransmitHold? Held(TransmitReport report) =>
+        report.HeldFor >= HoldWorthShowing ? new TransmitHold(report.HeldFor, report.Waits.Describe()) : null;
 
     private static HeardFrameQuality Describe(FrameQuality q) => new(
         Mode: q.Mode,

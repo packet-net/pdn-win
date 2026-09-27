@@ -20,6 +20,16 @@ with the version it shipped in; when something is decided, write it here.
   monitor path closed without muting capture), ALSA audio with CM108 or serial PTT, and going
   through PipeWire with a note when the desktop holds the card. Proven on a real AIOC on Debian 13:
   discovered, levels at 0 dB, the station live on qpsk3600 receiving.
+- **On air on both platforms**, 2026-09-27, as M0LTE to GB7RDG in qpsk3600 through the AIOC and
+  a Quansheng: from Windows (the new front-end) connect, `?`, `B`, with our retries recovering a
+  frame GB7RDG missed; and from Linux (pdn-lin under WSL, the AIOC over usbip, ALSA audio and
+  hidraw PTT) the same. The Linux run found three things: a busy card was named by thread rather
+  than process, which would also have kept the PipeWire fallback from recognising PipeWire (fixed
+  upstream, packet-net/pdn-soundmodem#542); a UA and the I-frame behind it handed up in the wrong
+  order (packet-net/pdn-soundmodem#543); and a reply held by carrier sense (below).
+- **HELD on our own frames.** The monitor shows how long one of our frames waited for the channel
+  and why ("HELD 6.5s", "held: 6.5s channel busy on ch0") when it waited a second or more, from
+  the channel's own report. It is what made the carrier sense question above answerable.
 - **Hot-plug, done and exercised.** The station reacts to interfaces arriving (inotify on `/dev`
   on Linux, configuration manager notifications on Windows) rather than polling, and the settings
   dialog rescans itself. Unplugged and replugged under a running station (usbip): on Linux it went
@@ -131,10 +141,11 @@ with the version it shipped in; when something is decided, write it here.
 
 ### pdn-lin, and other platforms
 
-- **On air on Linux, and with the new front-end on Windows.** qpsk3600 was proven on air with the
-  WPF front-end; the Avalonia one runs the same station code, and on Linux the station has been
-  live on the real AIOC receiving, but neither has yet made a connect to GB7RDG. Do it before
-  calling 0.2.0 proven, and record it here.
+- **Carrier sense holding replies on air.** On the Linux run a reply to GB7RDG waited 6.5 s with
+  "channel busy on ch0" while nothing decodable was on the channel. The audio path is not it: the
+  same detector over 30 s of idle channel from the same AIOC gives the same reference (31.1 dB on
+  Linux, 31.2 dB on Windows) and no false busy on either. So it was something the detector heard
+  (another station, a tail); the HELD tags will say how often, and against what.
 - **Raspberry Pi.** The arm64 `.deb` is built and checked but not yet run on a Pi: the waterfall
   at 30 lines a second plus qpsk3600 on a Pi 4 or 5, possibly with software rendering, is the
   question.
