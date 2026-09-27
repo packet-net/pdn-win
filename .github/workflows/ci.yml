@@ -1,9 +1,10 @@
 name: CI
 
-# Build and test on every push to main and every pull request.
+# Build and test on every push to main and every pull request, on Windows and on Linux, and build
+# the Linux package so that packaging cannot quietly break between releases.
 #
-# GitHub-hosted Windows: this is a public repository (standard hosted runners are free) and the app
-# is WPF, which needs Windows; the org's self-hosted runners are Linux.
+# GitHub-hosted runners for both: this is a public repository, where standard hosted runners are
+# free, and a pull request from a fork must not run on the org's self-hosted machines.
 
 on:
   push:
@@ -11,7 +12,7 @@ on:
   pull_request:
 
 jobs:
-  build:
+  windows:
     runs-on: windows-latest
     defaults:
       run:
@@ -27,4 +28,29 @@ jobs:
         run: dotnet build pdn-win.slnx -c Release
 
       - name: Test
-        run: dotnet test tests/PdnWin.Core.Tests -c Release --no-build
+        run: |
+          dotnet test tests/PdnWin.Core.Tests -c Release --no-build
+          dotnet test tests/PdnWin.Tests -c Release --no-build
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Build
+        run: dotnet build pdn-win.slnx -c Release
+
+      - name: Test
+        run: |
+          dotnet test tests/PdnWin.Core.Tests -c Release --no-build
+          dotnet test tests/PdnWin.Tests -c Release --no-build
+
+      - name: Package (amd64)
+        run: packaging/linux/build-deb.sh 0.0.0-ci amd64 dist
+
+      - name: Check the package
+        run: packaging/linux/check-deb.sh dist/pdn-lin_0.0.0-ci_amd64.deb

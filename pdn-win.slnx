@@ -1,9 +1,13 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/PdnWin.Core/PdnWin.Core.csproj" />
+    <Project Path="src/PdnWin.Presentation/PdnWin.Presentation.csproj" />
+    <Project Path="src/PdnWin.Windows/PdnWin.Windows.csproj" />
+    <Project Path="src/PdnWin.Linux/PdnWin.Linux.csproj" />
     <Project Path="src/PdnWin/PdnWin.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/PdnWin.Core.Tests/PdnWin.Core.Tests.csproj" />
+    <Project Path="tests/PdnWin.Tests/PdnWin.Tests.csproj" />
   </Folder>
 </Solution>

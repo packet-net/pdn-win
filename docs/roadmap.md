@@ -5,6 +5,37 @@ with the version it shipped in; when something is decided, write it here.
 
 ## Done
 
+### 0.2.0 (pdn-lin: the same app on Linux)
+
+- **One front-end for both platforms.** The WPF app is retired; the app is Avalonia 12 over view
+  models that know nothing of a UI framework (`PdnWin.Presentation`, with `IUiThread` and
+  `IStationHardware` as its only outside needs). It is pdn-win on Windows and pdn-lin on Linux
+  (`AppIdentity`), with the same look, panes, docking and behaviour, checked against the WPF app
+  side by side and then file by file (window placement, crash handling, the settings dialog's PTT
+  fields, recent callsigns, copy menus and the rest came across). Cascadia Mono travels with it.
+- **Linux hardware** (`PdnWin.Linux`), over `pdn-soundmodem-linux` (packet-net/pdn-soundmodem#539,
+  from v0.82.0): interfaces found by USB device in sysfs (an AIOC is one interface: card, hidraw
+  node, serial port), what the operator cannot open named with the fix before anything is opened,
+  mixer hygiene and levels on the ALSA mixer (nothing above 0 dB, AGC and boost off, the CM108
+  monitor path closed without muting capture), ALSA audio with CM108 or serial PTT, and going
+  through PipeWire with a note when the desktop holds the card. Proven on a real AIOC on Debian 13:
+  discovered, levels at 0 dB, the station live on qpsk3600 receiving.
+- **Hot-plug, done and exercised.** The station reacts to interfaces arriving (inotify on `/dev`
+  on Linux, configuration manager notifications on Windows) rather than polling, and the settings
+  dialog rescans itself. Unplugged and replugged under a running station (usbip): on Linux it went
+  from live to "not plugged in; waiting" and back to live on its own; on Windows a station waiting
+  for its AIOC came up within seconds of it arriving. A waiting station now says so once.
+- **Packaging and release.** One tag builds everything: the MSI and portable exe on Windows, and
+  `pdn-lin` `.deb`s (amd64, arm64) and tarballs on Linux, with a desktop entry, icons, a udev rule
+  (CM108 and AIOC PTT, the AIOC's serial port, to the logged-in user and the `audio` group) and
+  a WirePlumber rule keeping the desktop off the AIOC. The `.deb`s are served by packet-net/apt
+  (`sudo apt install pdn-lin`); the release tells it to reindex. Tried on Debian 13: installs with
+  apt, the rule applies, the app runs.
+- **CI on both platforms**, including headless UI tests of the real windows (`tests/PdnWin.Tests`)
+  and a build and check of the Linux package.
+- Upstream while doing it: pdn-soundmodem's daemon `.deb` now installs a udev rule for C-Media and
+  AIOC PTT too, instead of asking for one written by hand.
+
 ### 0.1.0 (first release)
 
 - **In-process soundmodem station.** pdn-soundmodem runs inside the app over any `ISoundCard`:
@@ -57,9 +88,10 @@ with the version it shipped in; when something is decided, write it here.
   `FmModes` list becomes a per-station mode set.
 - **Other CM108 interfaces** (Digirig, DRA boards, homebrew): discovery and PTT should already
   work; confirm on real units and note any that need a different GPIO.
-- **Hot-plug**: the station retries when its interface is missing or fails, which is written but
-  not yet exercised by unplugging a live interface. Test it, and react to device arrival rather
-  than polling.
+- **Unplugging on Windows under a running station**: the Linux side was exercised both ways and
+  Windows for arrival; Windows departure (WASAPI reporting the device gone) needs the interface
+  taken away while in use, which usbip can only do with `usbipd bind --force`, or a hand on the
+  cable.
 
 ### APRS
 
@@ -97,23 +129,36 @@ with the version it shipped in; when something is decided, write it here.
   own transmissions.
 - Constellation pane for the PSK modes (pdn-soundmodem has `ConstellationSource`).
 
-### pdn-lin: a Linux port and front-end
+### pdn-lin, and other platforms
 
-- **The same app on Linux.** `PdnWin.Core` was kept free of WPF and Windows APIs for this: the
-  station seam, the in-process soundmodem station, sessions, monitor formatting, the level advisor,
-  beacons, settings and the simulator all run on Linux as they are, and pdn-soundmodem already has
-  the Linux hardware side (ALSA capture and playback with the upsampler, `Cm108Ptt` over hidraw,
-  `SerialPtt`, and `AlsaMixer` for levels with AGC and mic boost forced off).
-- **What it needs**: a front-end (Avalonia is the likely choice: MIT, .NET, runs on both), Linux
-  interface discovery (group the ALSA card, hidraw node and tty that share a USB device, via sysfs,
-  as `RadioInterfaces` does by container ID on Windows), and the level and hygiene rules applied
-  through the ALSA mixer instead of Windows endpoints.
-- **Decision to make first**: a separate `pdn-lin` front-end sharing the core (and ideally the view
-  models, moved into a shared UI-neutral project), or one Avalonia front-end for both platforms that
-  replaces the WPF one. Either way the view models and the docking model should move out of the WPF
-  project before the second front-end is written, not after.
-- Packaging: a `.deb` alongside pdn-soundmodem's, and perhaps a Raspberry Pi build for a
-  shack-side terminal.
+- **On air on Linux, and with the new front-end on Windows.** qpsk3600 was proven on air with the
+  WPF front-end; the Avalonia one runs the same station code, and on Linux the station has been
+  live on the real AIOC receiving, but neither has yet made a connect to GB7RDG. Do it before
+  calling 0.2.0 proven, and record it here.
+- **Raspberry Pi.** The arm64 `.deb` is built and checked but not yet run on a Pi: the waterfall
+  at 30 lines a second plus qpsk3600 on a Pi 4 or 5, possibly with software rendering, is the
+  question.
+- **PipeWire on a real desktop.** The WirePlumber 0.5 rule and the fallback through
+  `pipewire:NODE=` are written against PipeWire's documented properties but have not met a desktop
+  that holds an AIOC: under WSL, WirePlumber manages no sound cards at all (no logind seat), so it
+  proved nothing either way. Check on a GNOME or KDE desktop: the rule leaves the AIOC out of the
+  sound settings, and with the rule removed, the station goes through PipeWire and says so. (What
+  WSL did show: WirePlumber 0.5 warns at every start about a Lua file in `main.lua.d`, so the 0.4
+  rule ships as an example to copy, not installed.)
+- **A per-device "leave this interface alone" for CM108 dongles.** The packaged rule covers the
+  AIOC only, because a C-Media chip is as likely to be someone's headset; the app could write a
+  WirePlumber rule for the one interface the operator chose.
+- **Wayland.** Avalonia runs through XWayland on a Wayland desktop, which works; native Wayland
+  when Avalonia has it.
+- **macOS.** Nothing in the way above the hardware layer: Avalonia, the view models, the core and
+  the modem all run there. What it needs is a third `IStationHardware`: CoreAudio capture and
+  playback (as `pdn-soundmodem-windows` does WASAPI), CM108 PTT through IOKit HID, serial through
+  the core's `SerialPtt` as it is, discovery grouping them by USB device, and levels on the
+  CoreAudio device. Then an `.app` bundle, universal (arm64 and x64), and signing and
+  notarisation with an Apple Developer ID, without which Gatekeeper refuses it. Testing needs a
+  Mac with the interface on it.
+- **`--list-interfaces` for pdn-soundmodem's daemon**, from the same discovery: held on licence, not
+  effort (the library is AGPL, the daemon GPL); see pdn-soundmodem's roadmap.
 
 ### Platform
 

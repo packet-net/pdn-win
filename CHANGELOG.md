@@ -5,6 +5,37 @@ Each release's notes are its section here, taken word for word by the release pi
 operator: what they can now do, what changed that they will notice, what was fixed. See
 [docs/releasing.md](docs/releasing.md).
 
+## 0.2.0
+
+pdn-win now runs on Linux too, where it is called **pdn-lin**: the same app, the same window, the
+same station, from the packet-net apt repository (`sudo apt install pdn-lin`) or a `.deb` here.
+
+- **pdn-lin for Linux**, amd64 and arm64 (a PC, or a Raspberry Pi 4 or 5 on a 64-bit OS). Plug in
+  an AIOC or a CM108 interface and it is found as one thing (sound card, PTT and serial port
+  together), its mixer is put right (nothing above 0 dB, AGC and mic boost off, the CM108 monitor
+  path closed) and its levels are the sliders. The package lets you key the radio without root
+  and keeps the desktop's sound server off the AIOC. If something still holds the card, pdn-lin
+  says what, and goes through PipeWire when it is PipeWire. Anything it cannot open is named,
+  with the fix, before the station starts.
+- **Plug and unplug.** A station waiting for its interface comes up the moment it is plugged in,
+  on Windows and Linux, and the settings dialog's list updates by itself. Unplugging a running
+  interface stops the station and it waits, saying so once rather than every few seconds.
+- **A new front-end, the same app.** pdn-win is rebuilt on Avalonia so that one app serves both
+  platforms. It looks and works as before, and a few things are better:
+  - the callsign box remembers the stations you connected to and connects on Enter;
+  - the monitor and the transcripts have Copy and Select all on the right-click menu, and copy in
+    the order the lines are in;
+  - the mode list says what each mode is;
+  - the settings dialog shows only the PTT fields for the PTT you chose;
+  - session tabs scroll instead of wrapping onto new rows;
+  - the title bar has a window menu on right-click;
+  - a pane being dragged can be put back with Escape.
+- **Windows**: the MSI now needs the .NET 10 Runtime rather than the Desktop Runtime (Windows still
+  offers it on first start). The portable exe needs nothing, as before.
+
+Settings carry over on Windows (`%APPDATA%\pdn-win`); on Linux they are kept in
+`~/.config/pdn-lin`.
+
 ## 0.1.0
 
 First release: a Windows packet radio terminal with pdn-soundmodem running inside it, for an FM

@@ -1,39 +1,41 @@
 using System.Globalization;
-using System.Windows;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
+using System.Runtime.InteropServices;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Media;
+using Avalonia.Media.Imaging;
+using Avalonia.Media.Immutable;
+using Avalonia.Platform;
+using Avalonia.Threading;
 using PdnWin.Core.Stations;
+using PdnWin.Presentation;
 
-namespace PdnWin.Controls;
+namespace PdnWin.App.Controls;
 
 /// <summary>
-/// The waterfall: lines scrolling down in the station page's inferno colour map, our own
-/// transmissions in a cyan-to-white ramp so they never look like a strong station, and a label on
-/// every frame heard at the line it was heard.
+/// The waterfall: inferno lines scrolling down, our own transmissions in the
+/// cyan-to-white ramp, labels on decoded frames, the colour range following the noise floor.
 /// </summary>
-public sealed class WaterfallView : FrameworkElement
+public sealed class WaterfallView : Control
 {
     /// <summary>Where lines come from.</summary>
-    public static readonly DependencyProperty FeedProperty = DependencyProperty.Register(
-        nameof(Feed), typeof(BandFeed), typeof(WaterfallView), new PropertyMetadata(null, (d, _) => ((WaterfallView)d).Hook()));
+    public static readonly StyledProperty<BandFeed?> FeedProperty = AvaloniaProperty.Register<WaterfallView, BandFeed?>(nameof(Feed));
 
     /// <summary>Hz shown from 0.</summary>
-    public static readonly DependencyProperty SpanHzProperty = DependencyProperty.Register(
-        nameof(SpanHz), typeof(double), typeof(WaterfallView), new FrameworkPropertyMetadata(3000.0, (d, _) => ((WaterfallView)d).Reset()));
+    public static readonly StyledProperty<double> SpanHzProperty = AvaloniaProperty.Register<WaterfallView, double>(nameof(SpanHz), 3000);
 
-    /// <summary>dBFS at the bottom of the colour map.</summary>
-    public static readonly DependencyProperty FloorDbProperty = DependencyProperty.Register(
-        nameof(FloorDb), typeof(double), typeof(WaterfallView), new PropertyMetadata(-90.0, (d, _) => ((WaterfallView)d).BuildMap()));
+    /// <summary>The bottom of the colour map, dBFS, when not ranging automatically.</summary>
+    public static readonly StyledProperty<double> FloorDbProperty = AvaloniaProperty.Register<WaterfallView, double>(nameof(FloorDb), -90);
 
-    /// <summary>Whether the colour map follows the noise floor (the station page's Auto).</summary>
-    public static readonly DependencyProperty AutoRangeProperty = DependencyProperty.Register(
-        nameof(AutoRange), typeof(bool), typeof(WaterfallView), new PropertyMetadata(true, (d, _) => ((WaterfallView)d).BuildMap()));
+    /// <summary>The top of the colour map, dBFS, when not ranging automatically.</summary>
+    public static readonly StyledProperty<double> TopDbProperty = AvaloniaProperty.Register<WaterfallView, double>(nameof(TopDb), -30);
 
-    /// <summary>dBFS at the top of the colour map.</summary>
-    public static readonly DependencyProperty TopDbProperty = DependencyProperty.Register(
-        nameof(TopDb), typeof(double), typeof(WaterfallView), new PropertyMetadata(-30.0, (d, _) => ((WaterfallView)d).BuildMap()));
+    /// <summary>Whether the map follows the band's noise floor (the default) rather than
+    /// <see cref="FloorDb"/> and <see cref="TopDb"/>.</summary>
+    public static readonly StyledProperty<bool> AutoRangeProperty = AvaloniaProperty.Register<WaterfallView, bool>(nameof(AutoRange), true);
 
-    // pdn-soundmodem waterfall.html: INFERNO and TX_RAMP, anchors evenly spaced.
+    private const int LinesPerRow = 2;
+
     private static readonly byte[][] Inferno =
     [
         [0, 0, 4], [12, 8, 38], [36, 12, 79], [66, 10, 104], [93, 18, 110], [120, 28, 109],
@@ -49,156 +51,178 @@ public sealed class WaterfallView : FrameworkElement
 
     private static readonly uint[] InfernoLut = Lut(Inferno);
     private static readonly uint[] TxLut = Lut(TxRamp);
-    private static readonly Typeface Mono = new(new FontFamily("Cascadia Mono, Consolas"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal);
-    private static readonly Brush TagBack = Freeze(new SolidColorBrush(Color.FromArgb(0xC8, 0x0A, 0x0D, 0x11)));
-    private static readonly Brush TagCall = Freeze(new SolidColorBrush(Color.FromRgb(0xF5, 0xA8, 0x3C)));
-    private static readonly Brush TagTx = Freeze(new SolidColorBrush(Color.FromRgb(0x7F, 0xE3, 0xF7)));
-    private static readonly Pen TagPen = FreezePen(new Pen(Freeze(new SolidColorBrush(Color.FromArgb(0xB0, 0xF5, 0xA8, 0x3C))), 1));
+    private static readonly Typeface Mono = new(Palette.Mono, FontStyle.Normal, FontWeight.SemiBold);
+    private static readonly IBrush TagBack = new ImmutableSolidColorBrush(Color.Parse("#C80A0D11"));
+    private static readonly IBrush TagTx = new ImmutableSolidColorBrush(Color.Parse("#7FE3F7"));
+    private static readonly IBrush TagRest = new ImmutableSolidColorBrush(Color.Parse("#DCDCDC"));
+    private static readonly IPen TagPen = new ImmutablePen(new ImmutableSolidColorBrush(Color.Parse("#B0F5A83C")), 1);
 
+    private readonly DispatcherTimer _frames;
     private readonly List<BandLine> _pending = [];
+    private readonly List<BandLine> _rows = [];
     private readonly List<BandTag> _newTags = [];
     private readonly List<BandTag> _tags = [];
     private readonly byte[] _map = new byte[256];
-
-    // Two lines to a pixel row: 30 lines a second is 15 rows, so a 300 px pane holds 20 s.
-    private const int LinesPerRow = 2;
-    private byte[] _accumulated = [];
-    private int _accumulatedCount;
-    private readonly List<BandLine> _rows = [];
     private readonly byte[] _sortScratch = new byte[8192];
-    private double _autoFloor = double.NaN;
-    private double _mappedFloor = double.NaN;
     private WriteableBitmap? _bitmap;
     private uint[] _row = [];
+    private byte[] _accumulated = [];
+    private int _accumulatedCount;
     private long _top = -1;
-    private bool _hooked;
+    private double _autoFloor = double.NaN;
+    private double _mappedFloor = double.NaN;
 
     /// <summary>Creates the view.</summary>
     public WaterfallView()
     {
-        BuildMap();
-        SizeChanged += (_, _) => Reset();
         ClipToBounds = true;
-        Unloaded += (_, _) => Unhook();
-        Loaded += (_, _) => Hook();
+        BuildMap();
+        _frames = new DispatcherTimer(TimeSpan.FromMilliseconds(33), DispatcherPriority.Render, (_, _) => OnFrame());
     }
 
     /// <summary>Where lines come from.</summary>
     public BandFeed? Feed
     {
-        get => (BandFeed?)GetValue(FeedProperty);
+        get => GetValue(FeedProperty);
         set => SetValue(FeedProperty, value);
     }
 
     /// <summary>Hz shown from 0.</summary>
     public double SpanHz
     {
-        get => (double)GetValue(SpanHzProperty);
+        get => GetValue(SpanHzProperty);
         set => SetValue(SpanHzProperty, value);
     }
 
-    /// <summary>dBFS at the bottom of the colour map.</summary>
+    /// <summary>The bottom of the colour map, dBFS, when not ranging automatically.</summary>
     public double FloorDb
     {
-        get => (double)GetValue(FloorDbProperty);
+        get => GetValue(FloorDbProperty);
         set => SetValue(FloorDbProperty, value);
     }
 
-    /// <summary>Whether the colour map follows the noise floor.</summary>
-    public bool AutoRange
-    {
-        get => (bool)GetValue(AutoRangeProperty);
-        set => SetValue(AutoRangeProperty, value);
-    }
-
-    /// <summary>The floor the auto range has settled on, dBFS.</summary>
-    public double AutoFloorDb => _autoFloor;
-
-    /// <summary>dBFS at the top of the colour map.</summary>
+    /// <summary>The top of the colour map, dBFS, when not ranging automatically.</summary>
     public double TopDb
     {
-        get => (double)GetValue(TopDbProperty);
+        get => GetValue(TopDbProperty);
         set => SetValue(TopDbProperty, value);
     }
 
-    /// <inheritdoc />
-    protected override void OnRender(DrawingContext dc)
+    /// <summary>Whether the map follows the band's noise floor.</summary>
+    public bool AutoRange
     {
-        dc.DrawRectangle(Brushes.Black, null, new Rect(0, 0, ActualWidth, ActualHeight));
+        get => GetValue(AutoRangeProperty);
+        set => SetValue(AutoRangeProperty, value);
+    }
+
+    /// <inheritdoc />
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == SpanHzProperty)
+        {
+            // Another span is another picture: start it afresh rather than smear the old one.
+            Reset();
+        }
+        else if (change.Property == FloorDbProperty || change.Property == TopDbProperty || change.Property == AutoRangeProperty)
+        {
+            BuildMap();
+        }
+    }
+
+    /// <inheritdoc />
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        _frames.Start();
+    }
+
+    /// <inheritdoc />
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        _frames.Stop();
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    /// <inheritdoc />
+    protected override void OnSizeChanged(SizeChangedEventArgs e)
+    {
+        base.OnSizeChanged(e);
+        Reset();
+    }
+
+    /// <inheritdoc />
+    public override void Render(DrawingContext context)
+    {
+        context.DrawRectangle(Brushes.Black, null, new Rect(Bounds.Size));
         if (_bitmap is null)
         {
             return;
         }
 
-        dc.DrawImage(_bitmap, new Rect(0, 0, ActualWidth, ActualHeight));
+        context.DrawImage(_bitmap, new Rect(Bounds.Size));
 
-        // Labels ride down with the line they were stamped on.
-        double scale = ActualHeight / _bitmap.PixelHeight / LinesPerRow;
-        double dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+        double scale = Bounds.Height / _bitmap.PixelSize.Height / LinesPerRow;
         var placed = new List<Rect>();
         foreach (BandTag tag in _tags)
         {
             double y = (_top - tag.Index) * scale;
-            if (y < 0 || y > ActualHeight)
+            if (y < 0 || y > Bounds.Height)
             {
                 continue;
             }
 
-            double x = Math.Clamp(tag.Hz / SpanHz * ActualWidth, 4, ActualWidth - 4);
+            double x = Math.Clamp(tag.Hz / SpanHz * Bounds.Width, 4, Bounds.Width - 4);
             int split = tag.Text.IndexOf(' ', StringComparison.Ordinal);
             string call = split > 0 ? tag.Text[..split] : tag.Text;
             string rest = split > 0 ? tag.Text[split..] : string.Empty;
-            var callText = new FormattedText(call, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Mono, 10.5, tag.Transmitted ? TagTx : TagCall, dpi);
-            var restText = new FormattedText(rest, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Mono, 10.5, Brushes.Gainsboro, dpi);
+            var callText = new FormattedText(call, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Mono, 10.5, tag.Transmitted ? TagTx : Palette.Amber);
+            var restText = new FormattedText(rest, CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Mono, 10.5, TagRest);
             double width = callText.Width + restText.Width + 10;
-            double left = x + width + 8 > ActualWidth ? x - width - 6 : x + 6;
-
-            // Frames heard together would print over each other; step each one below the last.
+            double left = x + width + 8 > Bounds.Width ? x - width - 6 : x + 6;
             var box = new Rect(left, y - 8, width, 16);
-            while (placed.Any(r => r.IntersectsWith(box)))
+            while (placed.Any(r => r.Intersects(box)))
             {
-                box.Offset(0, 17);
+                box = box.Translate(new Vector(0, 17));
             }
 
             placed.Add(box);
             y = box.Y + 8;
-            dc.DrawLine(TagPen, new Point(x, y - 6), new Point(x, y + 6));
-            dc.DrawRoundedRectangle(TagBack, null, new Rect(left, y - 8, width, 16), 3, 3);
-            dc.DrawText(callText, new Point(left + 5, y - 7));
-            dc.DrawText(restText, new Point(left + 5 + callText.Width, y - 7));
-        }
-    }
-
-    private void Hook()
-    {
-        if (!_hooked && Feed is not null)
-        {
-            _hooked = true;
-            CompositionTarget.Rendering += OnFrame;
-        }
-    }
-
-    private void Unhook()
-    {
-        if (_hooked)
-        {
-            _hooked = false;
-            CompositionTarget.Rendering -= OnFrame;
+            context.DrawLine(TagPen, new Point(x, y - 6), new Point(x, y + 6));
+            context.DrawRectangle(TagBack, null, box, 3, 3);
+            context.DrawText(callText, new Point(left + 5, y - 7));
+            context.DrawText(restText, new Point(left + 5 + callText.Width, y - 7));
         }
     }
 
     private void Reset()
     {
-        DpiScale dpi = VisualTreeHelper.GetDpi(this);
-        int width = (int)Math.Max(1, ActualWidth * dpi.DpiScaleX);
-        int height = (int)Math.Max(1, ActualHeight * dpi.DpiScaleY);
-        if (ActualWidth < 1 || ActualHeight < 1)
+        double scaling = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1;
+        int width = (int)Math.Max(1, Bounds.Width * scaling);
+        int height = (int)Math.Max(1, Bounds.Height * scaling);
+        if (Bounds.Width < 1 || Bounds.Height < 1)
         {
             _bitmap = null;
             return;
         }
 
-        _bitmap = new WriteableBitmap(width, height, 96 * dpi.DpiScaleX, 96 * dpi.DpiScaleY, PixelFormats.Bgr32, null);
+        _bitmap?.Dispose();
+        _bitmap = new WriteableBitmap(new PixelSize(width, height), new Vector(96 * scaling, 96 * scaling), PixelFormat.Bgra8888, AlphaFormat.Opaque);
+        using (ILockedFramebuffer fb = _bitmap.Lock())
+        {
+            // Black, not transparent garbage, until the first lines arrive.
+            var black = new byte[fb.RowBytes];
+            for (int i = 3; i < black.Length; i += 4)
+            {
+                black[i] = 0xFF;
+            }
+
+            for (int y = 0; y < height; y++)
+            {
+                Marshal.Copy(black, 0, fb.Address + (y * fb.RowBytes), fb.RowBytes);
+            }
+        }
+
         _row = new uint[width];
         InvalidateVisual();
     }
@@ -207,8 +231,9 @@ public sealed class WaterfallView : FrameworkElement
     {
         // Auto: the floor sits just under the band's noise and the map spans 45 dB above it, so
         // open-squelch hiss reads as a dark ground and a signal stands out whatever the level.
-        double floor = AutoRange && !double.IsNaN(_autoFloor) ? _autoFloor - 4 : FloorDb;
-        double top = AutoRange && !double.IsNaN(_autoFloor) ? floor + 45 : Math.Max(FloorDb + 1, TopDb);
+        bool auto = AutoRange && !double.IsNaN(_autoFloor);
+        double floor = auto ? _autoFloor - 4 : FloorDb;
+        double top = auto ? floor + 45 : Math.Max(FloorDb + 1, TopDb);
         _mappedFloor = _autoFloor;
         for (int b = 0; b < 256; b++)
         {
@@ -217,7 +242,26 @@ public sealed class WaterfallView : FrameworkElement
         }
     }
 
-    private void OnFrame(object? sender, EventArgs e)
+    private void TrackFloor(BandLine line)
+    {
+        int bins = Math.Min(line.Bins.Length, Math.Min(_sortScratch.Length, (int)(SpanHz / line.BinWidthHz)));
+        if (bins < 16)
+        {
+            return;
+        }
+
+        Span<byte> scratch = _sortScratch.AsSpan(0, bins);
+        line.Bins.AsSpan(0, bins).CopyTo(scratch);
+        scratch.Sort();
+        double db = SpectrumScale.ToDb(scratch[bins / 4]);
+        _autoFloor = double.IsNaN(_autoFloor) ? db : _autoFloor + ((db - _autoFloor) * 0.02);
+        if (double.IsNaN(_mappedFloor) || Math.Abs(_autoFloor - _mappedFloor) > 0.75)
+        {
+            BuildMap();
+        }
+    }
+
+    private void OnFrame()
     {
         if (Feed is not { } feed)
         {
@@ -232,16 +276,13 @@ public sealed class WaterfallView : FrameworkElement
             return;
         }
 
-        if (_newTags.Count > 0)
-        {
-            _tags.AddRange(_newTags);
-            _newTags.Clear();
-        }
+        _tags.AddRange(_newTags);
+        _newTags.Clear();
 
         _rows.Clear();
         foreach (BandLine line in _pending)
         {
-            if (AutoRange && !line.Transmitting)
+            if (!line.Transmitting)
             {
                 TrackFloor(line);
             }
@@ -260,15 +301,14 @@ public sealed class WaterfallView : FrameworkElement
                 }
             }
 
-            _accumulatedCount++;
-            if (_accumulatedCount >= LinesPerRow)
+            if (++_accumulatedCount >= LinesPerRow)
             {
                 _rows.Add(line with { Bins = (byte[])_accumulated.Clone() });
                 _accumulatedCount = 0;
             }
         }
 
-        if (_bitmap is { } bitmap && _rows.Count > 0 && IsVisible)
+        if (_bitmap is { } bitmap && _rows.Count > 0 && IsEffectivelyVisible)
         {
             Scroll(bitmap, _rows);
         }
@@ -280,56 +320,24 @@ public sealed class WaterfallView : FrameworkElement
 
         if (_bitmap is { } b2)
         {
-            _tags.RemoveAll(t => (_top - t.Index) / LinesPerRow > b2.PixelHeight);
+            _tags.RemoveAll(t => (_top - t.Index) / LinesPerRow > b2.PixelSize.Height);
         }
 
         InvalidateVisual();
     }
 
-    private void TrackFloor(BandLine line)
-    {
-        int bins = Math.Min(line.Bins.Length, Math.Min(_sortScratch.Length, (int)(SpanHz / line.BinWidthHz)));
-        if (bins < 16)
-        {
-            return;
-        }
-
-        // The quietest quarter of the band is the floor; a median would ride up under a busy
-        // channel. Smoothed over a few seconds so a burst does not pump the colours.
-        Span<byte> scratch = _sortScratch.AsSpan(0, bins);
-        line.Bins.AsSpan(0, bins).CopyTo(scratch);
-        scratch.Sort();
-        double db = SpectrumScale.ToDb(scratch[bins / 4]);
-        _autoFloor = double.IsNaN(_autoFloor) ? db : _autoFloor + ((db - _autoFloor) * 0.02);
-        if (double.IsNaN(_mappedFloor) || Math.Abs(_autoFloor - _mappedFloor) > 0.75)
-        {
-            BuildMap();
-        }
-    }
-
     private unsafe void Scroll(WriteableBitmap bitmap, List<BandLine> lines)
     {
-        int width = bitmap.PixelWidth, height = bitmap.PixelHeight;
+        int width = bitmap.PixelSize.Width, height = bitmap.PixelSize.Height;
         int rows = Math.Min(lines.Count, height);
-        bitmap.Lock();
-        try
+        using ILockedFramebuffer fb = bitmap.Lock();
+        int stride = fb.RowBytes / 4;
+        var pixels = new Span<uint>((void*)fb.Address, stride * height);
+        pixels[..(stride * (height - rows))].CopyTo(pixels[(stride * rows)..]);
+        for (int i = 0; i < rows; i++)
         {
-            var pixels = new Span<uint>((void*)bitmap.BackBuffer, bitmap.BackBufferStride / 4 * height);
-            int stride = bitmap.BackBufferStride / 4;
-            // Everything moves down by the number of new lines; the newest line is row 0.
-            pixels[..(stride * (height - rows))].CopyTo(pixels[(stride * rows)..]);
-            for (int i = 0; i < rows; i++)
-            {
-                BandLine line = lines[lines.Count - 1 - i];
-                Render(line, width);
-                _row.AsSpan(0, width).CopyTo(pixels.Slice(stride * i, width));
-            }
-
-            bitmap.AddDirtyRect(new Int32Rect(0, 0, width, height));
-        }
-        finally
-        {
-            bitmap.Unlock();
+            Render(lines[lines.Count - 1 - i], width);
+            _row.AsSpan(0, width).CopyTo(pixels.Slice(stride * i, width));
         }
     }
 
@@ -370,17 +378,5 @@ public sealed class WaterfallView : FrameworkElement
         }
 
         return lut;
-    }
-
-    private static T Freeze<T>(T freezable) where T : Freezable
-    {
-        freezable.Freeze();
-        return freezable;
-    }
-
-    private static Pen FreezePen(Pen pen)
-    {
-        pen.Freeze();
-        return pen;
     }
 }

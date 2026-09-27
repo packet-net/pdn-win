@@ -2,7 +2,8 @@
 
   <!-- Everything the app does that is not drawing: the station device seam and the in-process
        soundmodem station, sessions over packet.net's listener, the monitor formatting, beacons,
-       the level advisor and settings. No WPF and no Windows APIs, so it is tested headless. -->
+       the level advisor and settings. No UI framework and no platform APIs, so it is tested
+       headless and runs anywhere. -->
 
   <PropertyGroup>
     <RootNamespace>PdnWin.Core</RootNamespace>

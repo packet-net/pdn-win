@@ -1,0 +1,9 @@
+# pdn-lin: let the operator key a radio through a USB radio interface's HID GPIO (the C-Media
+# CM108 family, the AIOC) and open the AIOC's serial port, without root.
+#
+# uaccess gives the user logged in at the machine access, as the desktop already does for sound
+# cards (systemd-logind applies it, which is why this file sorts before 73-seat-late.rules). The
+# audio group covers everyone else: a station run over SSH, or on a machine with no seat.
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0d8c", TAG+="uaccess", GROUP="audio", MODE="0660"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1209", ATTRS{idProduct}=="7388", TAG+="uaccess", GROUP="audio", MODE="0660"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1209", ATTRS{idProduct}=="7388", TAG+="uaccess"

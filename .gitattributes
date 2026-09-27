@@ -1,3 +1,13 @@
 * text=auto
 *.ico binary
 *.png binary
+*.ttf binary
+
+# Shell scripts and the Linux package's text files run or install on Linux as they are: LF, whatever
+# the checkout's platform.
+*.sh text eol=lf
+packaging/linux/*.rules text eol=lf
+packaging/linux/*.conf text eol=lf
+packaging/linux/*.lua text eol=lf
+packaging/linux/*.desktop text eol=lf
+packaging/linux/copyright text eol=lf

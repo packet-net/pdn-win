@@ -1,0 +1,42 @@
+pdn-lin - pdn-win for Linux: packet radio terminal with a built-in soundcard modem
+https://github.com/packet-net/pdn-win
+
+Copyright (c) 2026 Tom Fanning M0LTE and Packet.NET contributors
+
+This package ships a self-contained build that bundles the pdn-win code, its
+.NET dependencies (packet.net, pdn-soundmodem, Avalonia and the rest), the
+.NET runtime, and the native libraries SkiaSharp and HarfBuzzSharp draw with.
+
+LICENCE
+-------
+
+pdn-win is free software: you can redistribute it and/or modify it under the
+terms of the GNU Affero General Public License as published by the Free
+Software Foundation, either version 3 of the License, or (at your option) any
+later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE.  See the GNU Affero General Public License for more
+details.
+
+The full text of the licence is in LICENSE in the source distribution, and at
+https://www.gnu.org/licenses/agpl-3.0.html.
+
+COMPONENTS
+----------
+
+  packet.net (Packet.Core, Packet.Ax25): AGPL-3.0-or-later.
+    https://github.com/packet-net/packet.net
+
+  pdn-soundmodem (the modem core): GPL-3.0-or-later, derived in part from
+  QtSoundModem and Dire Wolf; pdn-soundmodem-linux: AGPL-3.0-or-later.
+  GPLv3 section 13 permits the combination.
+    https://github.com/packet-net/pdn-soundmodem
+
+  Avalonia, SkiaSharp, HarfBuzzSharp, CommunityToolkit.Mvvm, the .NET runtime
+  and libraries: MIT.
+
+  Cascadia Mono (Microsoft) and Inter (Rasmus Andersson), the fonts bundled
+  into the executable: SIL Open Font License 1.1. Cascadia's licence text is
+  Assets/Fonts/OFL.txt in the source distribution.

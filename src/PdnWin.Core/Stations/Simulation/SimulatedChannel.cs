@@ -48,7 +48,7 @@ public sealed class SimulatedChannel : IAsyncDisposable
         _sessions = new SessionManager(_node.Transport, new SessionOptions
         {
             MyCall = NodeCall,
-            WelcomeText = "Welcome to GB7SIM, the pdn-win simulator.\nAnything you type is echoed back. B or BYE disconnects.",
+            WelcomeText = $"Welcome to GB7SIM, the {AppIdentity.Name} simulator.\nAnything you type is echoed back. B or BYE disconnects.",
         });
         _sessions.SessionOpened += Echo;
         _chatter = Task.Run(() => ChatterAsync(_stop.Token));
