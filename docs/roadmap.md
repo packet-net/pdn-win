@@ -220,5 +220,7 @@ with the version it shipped in; when something is decided, write it here.
 - Keep an off-air qpsk3600 capture from the next GB7RDG session as a pdn-soundmodem fixture.
 - packet.net connects send XID and SABM interleaved (the 2.2 MDL runs beside the DL), so a
   connect nobody answers costs twice the airtime of a plain SABM dial.
-- pdn-soundmodem: check whether its daemon, running 12 kHz modes from a 48 kHz card, falls back
-  to the energy detector on FM as this app did; if so, it wants the same card-rate shape detector.
+- pdn-soundmodem's daemon, with a channel under 48 kHz, falls back to the energy detector and
+  says so, naming a control cable to the radio as the fix. Feeding the shape detector the card's
+  audio before decimation, as this app now does, would fix it without one; worth checking what
+  GB7RDG's own replies wait for.
