@@ -43,6 +43,23 @@ public sealed record AppSettings
     [JsonIgnore]
     public bool IsComplete =>
         MyCall.Length > 0 && Interface.CaptureEndpointId is not null && Interface.RenderEndpointId is not null;
+
+    /// <summary>
+    /// Whether a running station has to be restarted to go from these settings to
+    /// <paramref name="next"/>. It is opened with the callsign and the interface, so a change to
+    /// either means starting again, and dropping any connected sessions. Everything else is taken
+    /// on the air as it runs: the mode, TXDELAY and TXTAIL, the session options and the beacon.
+    /// The levels are set as they change, and the name is only for display.
+    /// </summary>
+    public bool NeedsRestartFor(AppSettings next)
+    {
+        ArgumentNullException.ThrowIfNull(next);
+        return !string.Equals(MyCall, next.MyCall, StringComparison.OrdinalIgnoreCase)
+            || Opened(Interface) != Opened(next.Interface)
+            || Modem.CentreFrequencyHz != next.Modem.CentreFrequencyHz;
+
+        static InterfaceSettings Opened(InterfaceSettings i) => i with { Name = null, CaptureLevelDb = null, RenderLevelDb = null };
+    }
 }
 
 /// <summary>Which devices make up the radio interface.</summary>
@@ -97,8 +114,20 @@ public sealed record ModemSettings
     /// <summary>The audio centre for modes that take one; null for the mode's default.</summary>
     public double? CentreFrequencyHz { get; init; }
 
-    /// <summary>TXDELAY and friends. Handhelds want a longer TXDELAY than the 300 ms default.</summary>
-    public ChannelAccess ChannelAccess { get; init; } = new(TxDelayMs: 400);
+    /// <summary>
+    /// TXDELAY and TXTAIL, which are the radio's: handhelds want a longer TXDELAY than the 300 ms
+    /// default. Persistence and slot time are the channel's, not the station's. They only work if
+    /// every station sharing the channel uses the same, and a station that shortens its slot or
+    /// raises its persistence takes the channel from the rest; so they are always the usual 63 and
+    /// 100 ms, whatever the file says (0.2.0 and earlier offered them in Settings).
+    /// </summary>
+    public ChannelAccess ChannelAccess
+    {
+        get;
+        init => field = value with { Persistence = ChannelDefaults.Persistence, SlotTimeMs = ChannelDefaults.SlotTimeMs };
+    } = new(TxDelayMs: 400);
+
+    private static ChannelAccess ChannelDefaults { get; } = new();
 }
 
 /// <summary>The session layer.</summary>

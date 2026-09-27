@@ -5,6 +5,24 @@ Each release's notes are its section here, taken word for word by the release pi
 operator: what they can now do, what changed that they will notice, what was fixed. See
 [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+- **Replies go when the channel is clear, not ten seconds later.** On an FM radio with its squelch
+  open, the station took the channel to be busy for about ten seconds after everything it heard,
+  so a reply to a node could wait 5 to 18 seconds, or on a busy channel not go at all, and links
+  retried and gave up. Carrier sense now listens to the receiver's audio as pdn-soundmodem means
+  it to, at the sound card's own rate; on air, replies went within a second.
+- **Settings say what saving will do, and do only that.** The button is Save, and beside it the
+  dialog says what happens: the station starts, if it is not running; it restarts, dropping any
+  connected sessions, if you changed the callsign or the interface; otherwise the changes (mode,
+  TXDELAY, TXTAIL, the session options, the beacon) are made on the running station and nothing
+  drops. A save made while the station was still starting is no longer lost.
+- **Persistence and slot time are no longer settings.** They are the channel's, not the
+  station's: they only work if every station on the channel uses the same, and one that shortens
+  its slot or raises its persistence takes the channel from the rest. They are fixed at the usual
+  63 and 100 ms, including where an earlier version saved something else. TXDELAY and TXTAIL,
+  which suit your radio, stay.
+
 ## 0.2.0
 
 pdn-win now runs on Linux too, where it is called **pdn-lin**: the same app, the same window, the

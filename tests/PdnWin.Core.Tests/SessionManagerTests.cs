@@ -104,6 +104,37 @@ public class SessionManagerTests
     }
 
     [Fact]
+    public async Task A_welcome_text_changed_while_running_is_what_the_next_caller_gets()
+    {
+        (SessionManager a, SessionManager b) = await PairAsync(welcome: "Welcome to M0LTE-2");
+        await using SessionManager _ = a;
+        await using SessionManager __ = b;
+        b.WelcomeText = "Changed while on the air";
+        var welcome = new TaskCompletionSource<string>();
+        a.SessionOpened += s => s.Line += (_, line) =>
+        {
+            if (line.Kind == SessionLineKind.Received)
+            {
+                welcome.TrySetResult(line.Text);
+            }
+        };
+
+        await a.ConnectAsync(Callsign.Parse("M0LTE-2"), TestContext.Current.CancellationToken);
+        (await welcome.Task.WaitAsync(Patience, TestContext.Current.CancellationToken)).Should().Be("Changed while on the air");
+    }
+
+    [Fact]
+    public async Task A_paclen_of_nothing_is_refused_rather_than_sending_forever()
+    {
+        (SessionManager a, SessionManager b) = await PairAsync();
+        await using SessionManager _ = a;
+        await using SessionManager __ = b;
+
+        FluentActions.Invoking(() => a.Paclen = 0).Should().Throw<ArgumentOutOfRangeException>();
+        a.Paclen.Should().Be(128);
+    }
+
+    [Fact]
     public async Task A_line_longer_than_paclen_is_split_across_frames_and_reassembled()
     {
         (SessionManager a, SessionManager b) = await PairAsync();
