@@ -53,7 +53,15 @@ public enum FrameDirection
 /// <param name="Direction">Heard or sent.</param>
 /// <param name="Bytes">The AX.25 frame, no flags or FCS.</param>
 /// <param name="Quality">Receive diagnostics, where the device has them.</param>
-public sealed record HeardFrame(DateTimeOffset Time, FrameDirection Direction, byte[] Bytes, HeardFrameQuality? Quality = null);
+/// <param name="Hold">For one of ours, how long it waited for the channel and why, where the device
+/// measures it.</param>
+public sealed record HeardFrame(DateTimeOffset Time, FrameDirection Direction, byte[] Bytes, HeardFrameQuality? Quality = null, TransmitHold? Hold = null);
+
+/// <summary>How long one of our frames waited to go out, and what held it.</summary>
+/// <param name="For">From being queued to being keyed up.</param>
+/// <param name="Because">The cause that took most of it ("5.2s channel busy"), or null when no
+/// one cause took half.</param>
+public sealed record TransmitHold(TimeSpan For, string? Because);
 
 /// <summary>What the device could say about a received frame. Every field is optional.</summary>
 /// <param name="Mode">The mode that decoded it, e.g. "afsk1200".</param>

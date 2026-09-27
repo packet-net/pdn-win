@@ -34,10 +34,12 @@ public enum FrameKind
 /// <param name="Kind">For colour.</param>
 /// <param name="Header">The BPQ-style header, e.g. <c>M0LTE-1&gt;GB7RDG &lt;I C R0 S0 P&gt;</c>.</param>
 /// <param name="Info">The information field as display lines; empty when there is none.</param>
-/// <param name="Detail">Receive diagnostics, e.g. <c>afsk1200 17.5 dB +3 Hz</c>; empty when none.</param>
+/// <param name="Detail">Receive diagnostics, e.g. <c>afsk1200 17.5 dB +3 Hz</c>, or for one of ours
+/// what held it; empty when none.</param>
 /// <param name="Source">The frame's source, when it parsed.</param>
 /// <param name="Destination">The frame's destination, when it parsed.</param>
-/// <param name="Badge">A level verdict worth a badge ("TOO LOUD"), or null.</param>
+/// <param name="Badge">A level verdict worth a badge ("TOO LOUD"), "HELD 5.2s" for one of ours that
+/// waited for the channel, or null.</param>
 public sealed record MonitorEntry(
     DateTimeOffset Time,
     FrameDirection Direction,
@@ -61,6 +63,13 @@ public static class MonitorFormatter
         ArgumentNullException.ThrowIfNull(heard);
         string detail = FormatQuality(heard.Quality);
         string? badge = heard.Quality?.LevelVerdict;
+        if (heard.Hold is { } hold)
+        {
+            // The station page's HELD tag: a frame of ours that waited, and what it waited for.
+            string seconds = hold.For.TotalSeconds.ToString("0.0", CultureInfo.InvariantCulture);
+            badge = $"HELD {seconds}s";
+            detail = hold.Because is { } because ? $"held: {because}" : $"held {seconds}s, no one cause";
+        }
         if (!Ax25Frame.TryParse(heard.Bytes, out Ax25Frame? frame))
         {
             return new MonitorEntry(heard.Time, heard.Direction, FrameKind.Undecodable,
