@@ -6,9 +6,9 @@
 
     <!-- pdn-soundmodem: the modem core (GPL-3.0-or-later) and its Windows and Linux radio
          interface libraries (AGPL-3.0-or-later), released together on one version. -->
-    <PackageVersion Include="pdn-soundmodem" Version="0.82.0" />
-    <PackageVersion Include="pdn-soundmodem-windows" Version="0.82.0" />
-    <PackageVersion Include="pdn-soundmodem-linux" Version="0.82.0" />
+    <PackageVersion Include="pdn-soundmodem" Version="0.83.0" />
+    <PackageVersion Include="pdn-soundmodem-windows" Version="0.83.0" />
+    <PackageVersion Include="pdn-soundmodem-linux" Version="0.83.0" />
 
     <!-- Serial port enumeration for PTT. MIT. -->
     <PackageVersion Include="System.IO.Ports" Version="10.0.11" />
