@@ -190,6 +190,12 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
+    /// <summary>What the app is called here: pdn-win, or pdn-lin on Linux.</summary>
+    public string ProductName => Core.AppIdentity.Name;
+
+    /// <summary>The wordmark's second half: "-win" or "-lin".</summary>
+    public string ProductSuffix => Core.AppIdentity.Suffix;
+
     /// <summary>The hardware this front-end runs on; null where there is none.</summary>
     public IStationHardware? Hardware => _hardware;
 
@@ -211,7 +217,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     /// <summary>The script --demo runs: connect to the simulated node, talk, leave.</summary>
     public static IReadOnlyList<string> DefaultDemo { get; } =
-        ["C GB7SIM", "hello from pdn-win", "73 and thanks for the echo", "BYE"];
+        ["C GB7SIM", $"hello from {Core.AppIdentity.Name}", "73 and thanks for the echo", "BYE"];
 
     /// <summary>The app's version, as the release pipeline stamped it ("0.0.0-dev" from a plain build).</summary>
     public string Version { get; } =

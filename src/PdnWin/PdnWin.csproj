@@ -1,34 +1,41 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!-- The app: one Avalonia front-end for Windows (pdn-win) and Linux (pdn-lin), over the view
+       models in PdnWin.Presentation and the core, with the hardware layer for the machine it is
+       running on (PdnWin.Windows or PdnWin.Linux). -->
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
-    <UseWPF>true</UseWPF>
     <AssemblyName>pdn-win</AssemblyName>
-    <RootNamespace>PdnWin</RootNamespace>
-    <!-- The waterfall writes its bitmap through a pointer. -->
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <RootNamespace>PdnWin.App</RootNamespace>
     <ApplicationIcon>Assets\pdn-win.ico</ApplicationIcon>
     <Product>pdn-win</Product>
-    <Description>Windows packet radio terminal on packet.net and pdn-soundmodem</Description>
+    <Description>Packet radio terminal on packet.net and pdn-soundmodem, for Windows and Linux</Description>
+    <!-- The waterfall writes its bitmap through a pointer. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <!-- Referenced projects' XML docs are for the IDE, not the install. -->
     <AllowedReferenceRelatedFileExtensions>.pdb</AllowedReferenceRelatedFileExtensions>
     <!-- A framework-dependent build runs on a later .NET if 10 is not there. -->
     <RollForward>Major</RollForward>
-    <!-- WPF's generated code and the MVVM toolkit's partial properties. -->
-    <NoWarn>$(NoWarn);CA1812</NoWarn>
+    <!-- The MVVM toolkit's partial properties; Avalonia's reflection bindings. -->
+    <NoWarn>$(NoWarn);CA1812;AVLN3001</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <Resource Include="Assets\pdn-win.ico" />
+    <AvaloniaResource Include="Assets\**" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="Avalonia.Themes.Fluent" />
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
     <ProjectReference Include="..\PdnWin.Presentation\PdnWin.Presentation.csproj" />
     <ProjectReference Include="..\PdnWin.Windows\PdnWin.Windows.csproj" />
-    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <ProjectReference Include="..\PdnWin.Linux\PdnWin.Linux.csproj" />
   </ItemGroup>
 
 </Project>

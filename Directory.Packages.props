@@ -13,13 +13,13 @@
     <!-- Serial port enumeration for PTT. MIT. -->
     <PackageVersion Include="System.IO.Ports" Version="10.0.11" />
 
-    <!-- Avalonia: the cross-platform front-end (spike). MIT. -->
+    <!-- Avalonia: the front-end, on Windows and Linux. MIT. -->
     <PackageVersion Include="Avalonia" Version="12.1.3" />
     <PackageVersion Include="Avalonia.Desktop" Version="12.1.3" />
     <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.3" />
     <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.3" />
 
-    <!-- MVVM source generators for the WPF app. MIT. -->
+    <!-- MVVM source generators for the view models. MIT. -->
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
 
     <!-- Testing, as packet.net and pdn-soundmodem: xUnit v3 on MTP, AwesomeAssertions. -->

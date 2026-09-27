@@ -1,38 +1,39 @@
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Shapes;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.Shapes;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Layout;
+using Avalonia.Media;
+using Avalonia.Media.Immutable;
+using PdnWin.Docking;
 
-namespace PdnWin.Docking;
+namespace PdnWin.App.Docking;
 
 /// <summary>A pane the dock host can place.</summary>
 /// <param name="Id">Stable ID, stored in the saved layout.</param>
 /// <param name="Title">The tab text.</param>
 /// <param name="Content">What the pane shows. Kept alive and re-parented as the layout changes.</param>
 /// <param name="Tools">Optional controls shown at the right of the tab strip while the pane is selected.</param>
-public sealed record DockPane(string Id, string Title, FrameworkElement Content, FrameworkElement? Tools = null);
+public sealed record DockPane(string Id, string Title, Control Content, Control? Tools = null);
 
 /// <summary>
-/// A small docking host: panes in tabbed groups, groups in resizable rows and columns, panes
-/// dragged by their tab onto any group's centre (as a tab) or edge (as a new group), closed from
-/// the tab and brought back from the View menu. The layout round-trips through JSON.
+/// The dock host: tabbed groups in resizable rows and columns over the shared
+/// <see cref="DockLayout"/>, panes dragged by their tab onto another group's centre or edge.
+/// Dragging is done with pointer capture rather than the OS drag-and-drop, which keeps it the same
+/// on every platform Avalonia runs on.
 /// </summary>
-/// <remarks>
-/// Written for this app rather than taken from AvalonDock: AvalonDock is MS-PL, which the FSF
-/// counts as incompatible with the GPL family this app is licensed under. It does less (no
-/// floating windows yet) and is a few hundred lines.
-/// </remarks>
 public sealed class DockHost : Border
 {
-    internal const string DragFormat = "pdn-win/dock-pane";
-
     private readonly Dictionary<string, DockPane> _panes = [];
-    private readonly Dictionary<string, ContentPresenter> _hosts = [];
+    private readonly Dictionary<string, ContentControl> _hosts = [];
+    private readonly List<GroupView> _groups = [];
     private DockLayout _layout = new(new DockGroup([]));
+    private string? _dragging;
+    private GroupView? _hover;
+    private Action? _resetDraggedTab;
 
-    /// <summary>Raised whenever the layout changes: a move, a close, a resize.</summary>
+    /// <summary>Raised whenever the layout changes.</summary>
     public event Action? LayoutChanged;
 
     /// <summary>The current layout.</summary>
@@ -64,7 +65,7 @@ public sealed class DockHost : Border
     /// <summary>Whether a pane is placed.</summary>
     public bool IsShown(string id) => _layout.GroupOf(id) is not null;
 
-    /// <summary>Places a pane (beside <paramref name="near"/> if given) and selects it.</summary>
+    /// <summary>Places a pane and selects it.</summary>
     public void Show(string id, string? near = null)
     {
         _layout.Show(id, near);
@@ -78,8 +79,7 @@ public sealed class DockHost : Border
         Changed();
     }
 
-    /// <summary>Selects a placed pane's tab.</summary>
-    public void Select(string id)
+    internal void Select(string id)
     {
         if (_layout.GroupOf(id) is { } group && group.Selected != id)
         {
@@ -88,10 +88,78 @@ public sealed class DockHost : Border
         }
     }
 
-    internal void Move(string id, DockGroup target, DockZone zone)
+    /// <summary>A tab is being dragged; <paramref name="resetTab"/> puts it back if the drag is
+    /// abandoned (Escape, or the pointer taken away).</summary>
+    internal void BeginDrag(string id, Action resetTab)
     {
-        _layout.Move(id, target, zone);
-        Changed();
+        _dragging = id;
+        _resetDraggedTab = resetTab;
+        TopLevel.GetTopLevel(this)?.AddHandler(KeyDownEvent, OnDragKey, RoutingStrategies.Tunnel);
+    }
+
+    /// <summary>Abandons a drag: nothing moves.</summary>
+    internal void CancelDrag()
+    {
+        Action? reset = _resetDraggedTab;
+        FinishDrag();
+        reset?.Invoke();
+    }
+
+    internal void DragOver(PointerEventArgs e)
+    {
+        GroupView? over = null;
+        foreach (GroupView group in _groups)
+        {
+            Point p = e.GetPosition(group);
+            if (new Rect(group.Bounds.Size).Contains(p))
+            {
+                over = group;
+                group.Hint(p);
+            }
+            else
+            {
+                group.Hint(null);
+            }
+        }
+
+        _hover = over;
+        Cursor = over is null ? new Cursor(StandardCursorType.No) : new Cursor(StandardCursorType.DragMove);
+    }
+
+    internal void EndDrag()
+    {
+        string? id = _dragging;
+        GroupView? target = _hover;
+        DockZone? zone = target?.Zone;
+        FinishDrag();
+        if (id is not null && target is not null && zone is { } z)
+        {
+            _layout.Move(id, target.Group, z);
+            Changed();
+        }
+    }
+
+    private void FinishDrag()
+    {
+        foreach (GroupView group in _groups)
+        {
+            group.Hint(null);
+        }
+
+        _dragging = null;
+        _hover = null;
+        _resetDraggedTab = null;
+        Cursor = Cursor.Default;
+        TopLevel.GetTopLevel(this)?.RemoveHandler(KeyDownEvent, OnDragKey);
+    }
+
+    private void OnDragKey(object? sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && _dragging is not null)
+        {
+            e.Handled = true;
+            CancelDrag();
+        }
     }
 
     private void Changed()
@@ -102,48 +170,53 @@ public sealed class DockHost : Border
 
     private void Rebuild()
     {
-        // Every pane's content is re-parented, so first take it out of wherever it was.
-        foreach (ContentPresenter host in _hosts.Values)
+        foreach (ContentControl host in _hosts.Values)
         {
             host.Content = null;
         }
 
         _hosts.Clear();
+        _groups.Clear();
         Child = Build(_layout.Root);
     }
 
-    private UIElement Build(DockNode node) => node switch
+    private Control Build(DockNode node) => node switch
     {
-        DockGroup group => new GroupView(this, group, group.Panes.Where(_panes.ContainsKey).Select(p => _panes[p]).ToList(), _hosts),
+        DockGroup group => BuildGroup(group),
         DockSplit split => BuildSplit(split),
         _ => throw new InvalidOperationException(),
     };
+
+    private GroupView BuildGroup(DockGroup group)
+    {
+        var view = new GroupView(this, group, group.Panes.Where(_panes.ContainsKey).Select(p => _panes[p]).ToList(), _hosts);
+        _groups.Add(view);
+        return view;
+    }
 
     private Grid BuildSplit(DockSplit split)
     {
         var grid = new Grid();
         bool horizontal = split.Orientation == DockOrientation.Horizontal;
-        var cells = new List<UIElement>();
+        var cells = new List<Control>();
         for (int i = 0; i < split.Children.Count; i++)
         {
             if (i > 0)
             {
-                var gap = new GridLength(5);
                 if (horizontal)
                 {
-                    grid.ColumnDefinitions.Add(new ColumnDefinition { Width = gap });
+                    grid.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(5)));
                 }
                 else
                 {
-                    grid.RowDefinitions.Add(new RowDefinition { Height = gap });
+                    grid.RowDefinitions.Add(new RowDefinition(new GridLength(5)));
                 }
 
+                // Its colour comes from the theme, which also lights it on hover.
                 var splitter = new GridSplitter
                 {
+                    ResizeDirection = horizontal ? GridResizeDirection.Columns : GridResizeDirection.Rows,
                     ResizeBehavior = GridResizeBehavior.PreviousAndNext,
-                    HorizontalAlignment = HorizontalAlignment.Stretch,
-                    VerticalAlignment = VerticalAlignment.Stretch,
-                    Cursor = horizontal ? Cursors.SizeWE : Cursors.SizeNS,
                 };
                 splitter.DragCompleted += (_, _) => CaptureWeights(split, cells);
                 Place(grid, splitter, horizontal, (i * 2) - 1);
@@ -152,14 +225,14 @@ public sealed class DockHost : Border
             var size = new GridLength(split.Weights[i], GridUnitType.Star);
             if (horizontal)
             {
-                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = size, MinWidth = 60 });
+                grid.ColumnDefinitions.Add(new ColumnDefinition(size) { MinWidth = 60 });
             }
             else
             {
-                grid.RowDefinitions.Add(new RowDefinition { Height = size, MinHeight = 44 });
+                grid.RowDefinitions.Add(new RowDefinition(size) { MinHeight = 44 });
             }
 
-            UIElement cell = Build(split.Children[i]);
+            Control cell = Build(split.Children[i]);
             cells.Add(cell);
             Place(grid, cell, horizontal, i * 2);
         }
@@ -167,19 +240,18 @@ public sealed class DockHost : Border
         return grid;
     }
 
-    private void CaptureWeights(DockSplit split, List<UIElement> cells)
+    private void CaptureWeights(DockSplit split, List<Control> cells)
     {
         for (int i = 0; i < cells.Count && i < split.Weights.Count; i++)
         {
-            var element = (FrameworkElement)cells[i];
-            double size = split.Orientation == DockOrientation.Horizontal ? element.ActualWidth : element.ActualHeight;
+            double size = split.Orientation == DockOrientation.Horizontal ? cells[i].Bounds.Width : cells[i].Bounds.Height;
             split.Weights[i] = Math.Max(1, size);
         }
 
         LayoutChanged?.Invoke();
     }
 
-    private static void Place(Grid grid, UIElement element, bool horizontal, int index)
+    private static void Place(Grid grid, Control element, bool horizontal, int index)
     {
         if (horizontal)
         {
@@ -193,26 +265,20 @@ public sealed class DockHost : Border
         grid.Children.Add(element);
     }
 
-    /// <summary>One group: its tab strip, the selected pane, and the drop targets.</summary>
+    /// <summary>One group: its tab strip, the selected pane, and the drop hint.</summary>
     private sealed class GroupView : Border
     {
-        private readonly DockHost _host;
-        private readonly DockGroup _group;
-        private readonly Rectangle _dropHint;
-        private readonly Canvas _overlay;
-        private DockZone? _zone;
+        private static readonly IBrush HintFill = new ImmutableSolidColorBrush(Color.Parse("#38F5A83C"));
+        private readonly Rectangle _hint;
 
-        public GroupView(DockHost host, DockGroup group, IReadOnlyList<DockPane> panes, Dictionary<string, ContentPresenter> hosts)
+        public GroupView(DockHost host, DockGroup group, IReadOnlyList<DockPane> panes, Dictionary<string, ContentControl> hosts)
         {
-            _host = host;
-            _group = group;
-            Background = (Brush)Application.Current.FindResource("Panel");
-            BorderBrush = (Brush)Application.Current.FindResource("Edge");
+            Group = group;
+            Background = Palette.Panel;
+            BorderBrush = Palette.Edge;
             BorderThickness = new Thickness(1);
             CornerRadius = new CornerRadius(7);
             ClipToBounds = true;
-            AllowDrop = true;
-            SnapsToDevicePixels = true;
 
             DockPane? selected = panes.FirstOrDefault(p => p.Id == group.Selected) ?? panes.FirstOrDefault();
             group.Selected = selected?.Id;
@@ -239,15 +305,8 @@ public sealed class DockHost : Border
                 strip.Children.Add(tools);
             }
 
-            var header = new Border
-            {
-                Child = strip,
-                BorderBrush = BorderBrush,
-                BorderThickness = new Thickness(0, 0, 0, 1),
-                Background = (Brush)Application.Current.FindResource("Panel"),
-            };
-
-            var body = new ContentPresenter();
+            var header = new Border { Child = strip, BorderBrush = Palette.Edge, BorderThickness = new Thickness(0, 0, 0, 1), Background = Palette.Panel };
+            var body = new ContentControl();
             if (selected is not null)
             {
                 body.Content = selected.Content;
@@ -257,41 +316,41 @@ public sealed class DockHost : Border
             var layout = new DockPanel();
             DockPanel.SetDock(header, Dock.Top);
             layout.Children.Add(header);
-            layout.Children.Add(new Border { Child = body, Background = (Brush)Application.Current.FindResource("Panel2") });
+            layout.Children.Add(new Border { Child = body, Background = Palette.Panel2 });
 
-            _dropHint = new Rectangle
+            _hint = new Rectangle
             {
-                Fill = new SolidColorBrush(Color.FromArgb(0x38, 0xF5, 0xA8, 0x3C)),
-                Stroke = (Brush)Application.Current.FindResource("Amber"),
+                Fill = HintFill,
+                Stroke = Palette.Amber,
                 StrokeThickness = 1.5,
                 RadiusX = 5,
                 RadiusY = 5,
-                Visibility = Visibility.Collapsed,
+                IsVisible = false,
                 IsHitTestVisible = false,
             };
-            _overlay = new Canvas { IsHitTestVisible = false };
-            _overlay.Children.Add(_dropHint);
+            var overlay = new Canvas { IsHitTestVisible = false };
+            overlay.Children.Add(_hint);
 
             var root = new Grid();
             root.Children.Add(layout);
-            root.Children.Add(_overlay);
+            root.Children.Add(overlay);
             Child = root;
-
-            DragOver += OnDragOver;
-            DragLeave += (_, _) => Hint(null);
-            Drop += OnDrop;
         }
 
-        private void OnDragOver(object sender, DragEventArgs e)
+        public DockGroup Group { get; }
+
+        public DockZone? Zone { get; private set; }
+
+        public void Hint(Point? at)
         {
-            if (!e.Data.GetDataPresent(DragFormat))
+            if (at is not { } p)
             {
-                e.Effects = DragDropEffects.None;
+                Zone = null;
+                _hint.IsVisible = false;
                 return;
             }
 
-            Point p = e.GetPosition(this);
-            double w = ActualWidth, h = ActualHeight;
+            double w = Bounds.Width, h = Bounds.Height;
             double dx = p.X / w, dy = p.Y / h;
             DockZone zone = (dx, dy) switch
             {
@@ -299,34 +358,7 @@ public sealed class DockHost : Border
                 _ when Math.Min(dx, 1 - dx) < Math.Min(dy, 1 - dy) => dx < 0.5 ? DockZone.Left : DockZone.Right,
                 _ => dy < 0.5 ? DockZone.Top : DockZone.Bottom,
             };
-
-            Hint(zone);
-            e.Effects = DragDropEffects.Move;
-            e.Handled = true;
-        }
-
-        private void OnDrop(object sender, DragEventArgs e)
-        {
-            DockZone? zone = _zone;
-            Hint(null);
-            if (zone is { } z && e.Data.GetData(DragFormat) is string id)
-            {
-                // After the drag-drop loop unwinds: rebuilding the tree mid-drop tears down the
-                // element the drop is being delivered to.
-                Dispatcher.BeginInvoke(() => _host.Move(id, _group, z));
-            }
-        }
-
-        private void Hint(DockZone? zone)
-        {
-            _zone = zone;
-            if (zone is null)
-            {
-                _dropHint.Visibility = Visibility.Collapsed;
-                return;
-            }
-
-            double w = ActualWidth, h = ActualHeight;
+            Zone = zone;
             Rect r = zone switch
             {
                 DockZone.Left => new Rect(4, 4, w / 2 - 6, h - 8),
@@ -335,11 +367,11 @@ public sealed class DockHost : Border
                 DockZone.Bottom => new Rect(4, h / 2 + 2, w - 8, h / 2 - 6),
                 _ => new Rect(4, 34, w - 8, h - 38),
             };
-            Canvas.SetLeft(_dropHint, r.X);
-            Canvas.SetTop(_dropHint, r.Y);
-            _dropHint.Width = Math.Max(0, r.Width);
-            _dropHint.Height = Math.Max(0, r.Height);
-            _dropHint.Visibility = Visibility.Visible;
+            Canvas.SetLeft(_hint, r.X);
+            Canvas.SetTop(_hint, r.Y);
+            _hint.Width = Math.Max(0, r.Width);
+            _hint.Height = Math.Max(0, r.Height);
+            _hint.IsVisible = true;
         }
     }
 
@@ -349,45 +381,44 @@ public sealed class DockHost : Border
         private readonly DockHost _host;
         private readonly DockPane _pane;
         private Point? _pressedAt;
+        private bool _dragging;
+        private IPointer? _pointer;
 
         public TabHeader(DockHost host, DockGroup group, DockPane pane, bool selected)
         {
             _host = host;
             _pane = pane;
-            Cursor = Cursors.Hand;
+            Cursor = new Cursor(StandardCursorType.Hand);
             Background = Brushes.Transparent;
             Padding = new Thickness(9, 0, 4, 0);
-            ToolTip = "Drag to move; drop on another pane's edge to split it";
+            ToolTip.SetTip(this, "Drag to move; drop on another pane's edge to split it");
 
             var title = new TextBlock
             {
                 Text = pane.Title.ToUpperInvariant(),
                 FontSize = 10,
-                FontWeight = FontWeights.SemiBold,
+                FontWeight = FontWeight.SemiBold,
+                LetterSpacing = 1.2,
                 VerticalAlignment = VerticalAlignment.Center,
-                Foreground = (Brush)Application.Current.FindResource(selected ? "Ink" : "Muted"),
+                Foreground = selected ? Palette.Ink : Palette.Muted,
+                Margin = new Thickness(0, 1, 0, 0),
             };
-            TextOptions.SetTextFormattingMode(title, TextFormattingMode.Display);
-            title.SetValue(TextBlock.LineHeightProperty, 12.0);
-            title.Margin = new Thickness(0, 1, 0, 0);
-            title.Inlines.Clear();
-            title.Text = Spaced(pane.Title.ToUpperInvariant());
 
             var close = new Button
             {
-                Content = new Path
+                Content = new Avalonia.Controls.Shapes.Path
                 {
                     Data = Geometry.Parse("M 0,0 L 6,6 M 6,0 L 0,6"),
-                    Stroke = (Brush)Application.Current.FindResource("Muted"),
+                    Stroke = Palette.Muted,
                     StrokeThickness = 1.3,
                 },
-                Style = (Style)Application.Current.FindResource("GhostButton"),
+                Classes = { "ghost" },
                 Padding = new Thickness(5),
                 Margin = new Thickness(4, 0, 0, 0),
                 Opacity = 0,
-                ToolTip = "Close (bring it back from the View menu)",
                 VerticalAlignment = VerticalAlignment.Center,
             };
+            ToolTip.SetTip(close, "Close (bring it back from the View menu)");
             close.Click += (_, _) => _host.Close(_pane.Id);
 
             var underline = new Border
@@ -395,7 +426,7 @@ public sealed class DockHost : Border
                 Height = 2,
                 CornerRadius = new CornerRadius(1),
                 VerticalAlignment = VerticalAlignment.Bottom,
-                Background = selected ? (Brush)Application.Current.FindResource("Amber") : Brushes.Transparent,
+                Background = selected ? Palette.Amber : Brushes.Transparent,
                 Margin = new Thickness(0, 0, 18, 0),
             };
 
@@ -407,39 +438,75 @@ public sealed class DockHost : Border
             grid.Children.Add(underline);
             Child = grid;
 
-            MouseEnter += (_, _) => close.Opacity = 1;
-            MouseLeave += (_, _) => close.Opacity = 0;
-            PreviewMouseLeftButtonDown += (_, e) => _pressedAt = e.GetPosition(this);
-            PreviewMouseLeftButtonUp += (_, _) =>
+            PointerEntered += (_, _) => close.Opacity = 1;
+            PointerExited += (_, _) => close.Opacity = 0;
+            PointerPressed += (_, e) =>
             {
-                if (_pressedAt is not null && group.Selected != pane.Id)
+                if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+                {
+                    _pressedAt = e.GetPosition(this);
+                    _pointer = e.Pointer;
+                    e.Pointer.Capture(this);
+                }
+            };
+            PointerMoved += (_, e) =>
+            {
+                if (_pressedAt is not { } start)
+                {
+                    return;
+                }
+
+                if (!_dragging)
+                {
+                    Vector moved = e.GetPosition(this) - start;
+                    if (Math.Abs(moved.X) < 8 && Math.Abs(moved.Y) < 8)
+                    {
+                        return;
+                    }
+
+                    _dragging = true;
+                    _host.BeginDrag(_pane.Id, Reset);
+                }
+
+                _host.DragOver(e);
+            };
+            PointerReleased += (_, e) =>
+            {
+                // State first: releasing the capture raises CaptureLost, which must not read this as
+                // an abandoned drag.
+                bool wasDragging = _dragging;
+                _pressedAt = null;
+                _dragging = false;
+                _pointer = null;
+                e.Pointer.Capture(null);
+                if (wasDragging)
+                {
+                    _host.EndDrag();
+                }
+                else if (group.Selected != pane.Id)
                 {
                     _host.Select(pane.Id);
+                }
+            };
+            PointerCaptureLost += (_, _) =>
+            {
+                // Capture taken away mid-drag (another window, a menu): nothing moves.
+                if (_dragging)
+                {
+                    _host.CancelDrag();
                 }
 
                 _pressedAt = null;
             };
-            MouseMove += OnMouseMove;
         }
 
-        private static string Spaced(string text) => string.Join(' ', text.ToCharArray());
-
-        private void OnMouseMove(object sender, MouseEventArgs e)
+        private void Reset()
         {
-            if (_pressedAt is not { } start || e.LeftButton != MouseButtonState.Pressed)
-            {
-                return;
-            }
-
-            Vector moved = e.GetPosition(this) - start;
-            if (Math.Abs(moved.X) < SystemParameters.MinimumHorizontalDragDistance * 2 &&
-                Math.Abs(moved.Y) < SystemParameters.MinimumVerticalDragDistance * 2)
-            {
-                return;
-            }
-
+            _dragging = false;
             _pressedAt = null;
-            DragDrop.DoDragDrop(this, new DataObject(DragFormat, _pane.Id), DragDropEffects.Move);
+            IPointer? pointer = _pointer;
+            _pointer = null;
+            pointer?.Capture(null);
         }
     }
 }

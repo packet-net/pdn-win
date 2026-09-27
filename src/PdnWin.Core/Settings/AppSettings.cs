@@ -18,7 +18,7 @@ public enum PttKind
     Serial,
 }
 
-/// <summary>Everything the app remembers. Stored as JSON in %APPDATA%\pdn-win.</summary>
+/// <summary>Everything the app remembers. Stored as JSON in <see cref="AppIdentity.DataDirectory"/>.</summary>
 public sealed record AppSettings
 {
     /// <summary>Our callsign with SSID; empty until the operator sets it.</summary>
@@ -51,20 +51,21 @@ public sealed record InterfaceSettings
     /// <summary>The interface's name, for display ("AIOC Audio").</summary>
     public string? Name { get; init; }
 
-    /// <summary>The Windows container ID of the physical device, for finding it again if its
-    /// endpoint or HID paths change (a serial-less CM108 moved to another USB port).</summary>
+    /// <summary>What identifies the physical device, for finding it again if its endpoint or HID
+    /// paths change (a serial-less CM108 moved to another USB port): the Windows container ID, or
+    /// on Linux the interface's key (USB IDs and serial number, or USB port).</summary>
     public string? ContainerId { get; init; }
 
-    /// <summary>The WASAPI capture endpoint ID.</summary>
+    /// <summary>The capture device: a WASAPI endpoint ID, or an ALSA device string.</summary>
     public string? CaptureEndpointId { get; init; }
 
-    /// <summary>The WASAPI render endpoint ID.</summary>
+    /// <summary>The playback device: a WASAPI endpoint ID, or an ALSA device string.</summary>
     public string? RenderEndpointId { get; init; }
 
     /// <summary>How PTT is done.</summary>
     public PttKind Ptt { get; init; } = PttKind.Cm108Hid;
 
-    /// <summary>The HID device path, for <see cref="PttKind.Cm108Hid"/>.</summary>
+    /// <summary>The HID device path (a Windows device path, or <c>/dev/hidrawN</c>), for <see cref="PttKind.Cm108Hid"/>.</summary>
     public string? HidPath { get; init; }
 
     /// <summary>The CM108 GPIO pin.</summary>
@@ -79,10 +80,11 @@ public sealed record InterfaceSettings
     /// <summary>Key with DTR (the AIOC's serial PTT is DTR set, RTS clear).</summary>
     public bool SerialDtr { get; init; } = true;
 
-    /// <summary>The Windows capture level to hold, in dB (never above 0); null leaves it alone.</summary>
+    /// <summary>The system capture level to hold (the Windows endpoint, or the ALSA mixer), in dB
+    /// (never above 0); null leaves it alone.</summary>
     public double? CaptureLevelDb { get; init; }
 
-    /// <summary>The Windows render level to hold, in dB (never above 0); null leaves it alone.</summary>
+    /// <summary>The system playback level to hold, in dB (never above 0); null leaves it alone.</summary>
     public double? RenderLevelDb { get; init; }
 }
 
@@ -106,7 +108,7 @@ public sealed record SessionSettings
     public bool AcceptIncoming { get; init; } = true;
 
     /// <summary>Sent to a station that connects to us.</summary>
-    public string WelcomeText { get; init; } = "Welcome to {MYCALL}, running pdn-win.";
+    public string WelcomeText { get; init; } = $"Welcome to {{MYCALL}}, running {AppIdentity.Name}.";
 
     /// <summary>Information bytes per frame.</summary>
     public int Paclen { get; init; } = 128;
@@ -128,7 +130,7 @@ public sealed record BeaconSettingsModel
     public string Path { get; init; } = "BEACON";
 
     /// <summary>The text; {MYCALL} is replaced.</summary>
-    public string Text { get; init; } = "{MYCALL} packet station, pdn-win";
+    public string Text { get; init; } = $"{{MYCALL}} packet station, {AppIdentity.Name}";
 }
 
 /// <summary>Display state.</summary>
@@ -165,9 +167,8 @@ public sealed class SettingsStore(string path)
         Converters = { new JsonStringEnumConverter() },
     };
 
-    /// <summary>The usual place: %APPDATA%\pdn-win\settings.json.</summary>
-    public static SettingsStore Default { get; } = new(Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "pdn-win", "settings.json"));
+    /// <summary>The usual place: settings.json in <see cref="AppIdentity.DataDirectory"/>.</summary>
+    public static SettingsStore Default { get; } = new(Path.Combine(AppIdentity.DataDirectory, "settings.json"));
 
     /// <summary>Where the file is.</summary>
     public string FilePath { get; } = path;

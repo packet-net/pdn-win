@@ -34,6 +34,13 @@ def draw() -> Image.Image:
 
 
 if __name__ == "__main__":
+    import os
+
     icon = draw()
     icon.save("src/PdnWin/Assets/pdn-win.png")
     icon.save("src/PdnWin/Assets/pdn-win.ico", sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+
+    # The Linux package's icon theme sizes (packaging/linux/build-deb.sh installs each one).
+    os.makedirs("packaging/linux/icons", exist_ok=True)
+    for size in (16, 24, 32, 48, 64, 128, 256, 512):
+        icon.resize((size, size), Image.LANCZOS).save(f"packaging/linux/icons/{size}.png")

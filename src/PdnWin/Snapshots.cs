@@ -1,19 +1,18 @@
-using System.IO;
-using System.Windows;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Threading;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Media.Imaging;
+using Avalonia.Threading;
 
-namespace PdnWin;
+namespace PdnWin.App;
 
 /// <summary>
-/// Development aid: with the environment variable <c>PDNWIN_SNAPSHOT</c> set to a directory, every
-/// open window renders itself to a PNG there every second (named after its title). This is how the
-/// UI is checked from a script without taking focus from whatever the developer is doing.
+/// Development aid: with <c>PDNWIN_SNAPSHOT</c> set to a directory, every open
+/// window renders itself to a PNG there each second, named after its title.
 /// </summary>
 internal static class Snapshots
 {
-    public static void StartIfRequested(Dispatcher dispatcher)
+    public static void StartIfRequested()
     {
         string? directory = Environment.GetEnvironmentVariable("PDNWIN_SNAPSHOT");
         if (string.IsNullOrWhiteSpace(directory))
@@ -22,45 +21,39 @@ internal static class Snapshots
         }
 
         Directory.CreateDirectory(directory);
-        var timer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => Capture(directory), dispatcher);
+        var timer = new DispatcherTimer(TimeSpan.FromSeconds(1), DispatcherPriority.Background, (_, _) => Capture(directory));
         timer.Start();
     }
 
     private static void Capture(string directory)
     {
-        foreach (Window window in Application.Current.Windows)
+        if (Application.Current?.ApplicationLifetime is not IClassicDesktopStyleApplicationLifetime desktop)
         {
-            if (!window.IsVisible || window.Content is not FrameworkElement root || root.ActualWidth < 1)
+            return;
+        }
+
+        foreach (Window window in desktop.Windows)
+        {
+            if (!window.IsVisible || window.Bounds.Width < 1)
             {
                 continue;
             }
 
-            DpiScale dpi = VisualTreeHelper.GetDpi(window);
-            var bitmap = new RenderTargetBitmap(
-                (int)(root.ActualWidth * dpi.DpiScaleX), (int)(root.ActualHeight * dpi.DpiScaleY),
-                96 * dpi.DpiScaleX, 96 * dpi.DpiScaleY, PixelFormats.Pbgra32);
-            var visual = new DrawingVisual();
-            using (DrawingContext dc = visual.RenderOpen())
-            {
-                dc.DrawRectangle(window.Background, null, new Rect(0, 0, root.ActualWidth, root.ActualHeight));
-                dc.DrawRectangle(new VisualBrush(root), null, new Rect(0, 0, root.ActualWidth, root.ActualHeight));
-            }
-
-            bitmap.Render(visual);
-            var encoder = new PngBitmapEncoder();
-            encoder.Frames.Add(BitmapFrame.Create(bitmap));
-            string name = string.Concat(window.Title.Split(Path.GetInvalidFileNameChars()));
-            string path = Path.Combine(directory, (name.Length == 0 ? "window" : name) + ".png");
+            double scale = window.RenderScaling;
+            using var bitmap = new RenderTargetBitmap(
+                new PixelSize((int)(window.Bounds.Width * scale), (int)(window.Bounds.Height * scale)), new Vector(96 * scale, 96 * scale));
+            bitmap.Render(window);
+            string name = string.Concat((window.Title ?? "window").Split(Path.GetInvalidFileNameChars()));
+            string path = Path.Combine(directory, name + ".png");
             try
             {
-                using FileStream file = File.Create(path + ".tmp");
-                encoder.Save(file);
-                file.Close();
+#pragma warning disable CS0618 // the replacement overload needs encoder options this does not care about
+                bitmap.Save(path + ".tmp");
+#pragma warning restore CS0618
                 File.Move(path + ".tmp", path, overwrite: true);
             }
             catch (IOException)
             {
-                // The reader has it open; next second will do.
             }
         }
     }

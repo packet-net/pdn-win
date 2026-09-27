@@ -5,7 +5,6 @@
     <Project Path="src/PdnWin.Windows/PdnWin.Windows.csproj" />
     <Project Path="src/PdnWin.Linux/PdnWin.Linux.csproj" />
     <Project Path="src/PdnWin/PdnWin.csproj" />
-    <Project Path="src/PdnWin.Avalonia/PdnWin.Avalonia.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/PdnWin.Core.Tests/PdnWin.Core.Tests.csproj" />

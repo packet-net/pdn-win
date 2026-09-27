@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- The view models and the layout model, with no UI framework and no platform in them: the
-       WPF front-end and the Avalonia one both bind to exactly these. The two things a view model
-       cannot do for itself come in through Hosting/: the UI thread, and the station hardware. -->
+  <!-- The view models and the layout model, with no UI framework and no platform in them, so they
+       are tested without a UI and the front-end is only views. The two things a view model cannot
+       do for itself come in through Hosting/: the UI thread, and the station hardware. -->
 
   <PropertyGroup>
     <RootNamespace>PdnWin</RootNamespace>

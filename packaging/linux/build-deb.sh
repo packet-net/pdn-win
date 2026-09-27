@@ -36,9 +36,13 @@ trap 'rm -rf "$STAGE"' EXIT
 PKGDIR=/usr/lib/pdn-lin
 DOCDIR=/usr/share/doc/pdn-lin
 
-# The app's project, and the executable it publishes (its assembly name).
+# The app's project, and the executable it publishes (its assembly name). PDN_SOUNDMODEM_ROOT
+# builds against a local pdn-soundmodem checkout instead of the pinned packages, as
+# -p:PdnSoundModemRoot does for dotnet build.
 PROJECT="${PROJECT:-$ROOT/src/PdnWin/PdnWin.csproj}"
-EXENAME="$(dotnet msbuild "$PROJECT" -getProperty:AssemblyName)"
+UPSTREAM=()
+[ -n "${PDN_SOUNDMODEM_ROOT:-}" ] && UPSTREAM=("-p:PdnSoundModemRoot=$PDN_SOUNDMODEM_ROOT")
+EXENAME="$(dotnet msbuild "$PROJECT" "${UPSTREAM[@]}" -getProperty:AssemblyName)"
 [ -n "$EXENAME" ] || { echo "could not read the assembly name of $PROJECT" >&2; exit 4; }
 
 # Invariant globalization: a self-contained build otherwise needs libicu, whose package name
@@ -53,6 +57,7 @@ dotnet publish "$PROJECT" \
   -p:Version="$VERSION" \
   -p:DebugType=none \
   -p:GenerateDocumentationFile=false \
+  "${UPSTREAM[@]}" \
   --output "$STAGE/publish"
 
 EXE="$STAGE/publish/$EXENAME"
