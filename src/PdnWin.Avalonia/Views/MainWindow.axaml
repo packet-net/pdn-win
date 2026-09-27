@@ -1,0 +1,159 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:c="clr-namespace:PdnWin.Ava.Controls"
+        xmlns:d="clr-namespace:PdnWin.Ava.Docking"
+        xmlns:local="clr-namespace:PdnWin.Ava"
+        xmlns:vm="clr-namespace:PdnWin.ViewModels;assembly=PdnWin.Presentation"
+        x:Class="PdnWin.Ava.Views.MainWindow"
+        Title="pdn-win" Width="1440" Height="900" MinWidth="980" MinHeight="600"
+        Icon="avares://pdn-win-avalonia/Assets/pdn-win.ico"
+        WindowStartupLocation="CenterScreen">
+
+    <DockPanel x:Name="Frame">
+
+        <!-- Title bar: the wordmark, the station's state, lamps, and (on Windows) the window's own buttons. -->
+        <Grid x:Name="TitleBar" DockPanel.Dock="Top" Height="40" Background="{StaticResource Panel}" ColumnDefinitions="Auto,*,Auto,Auto">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
+                <Path Data="M0,9 L4,9 L6,3 L9,15 L12,6 L14,9 L18,9" Stroke="{StaticResource Amber}" StrokeThickness="1.8"
+                      StrokeJoin="Round" StrokeLineCap="Round" Margin="0,0,10,0" VerticalAlignment="Center" />
+                <TextBlock FontFamily="{StaticResource Mono}" FontSize="14" VerticalAlignment="Center">
+                    <Run Text="pdn" Foreground="{StaticResource Amber}" FontWeight="SemiBold" /><Run Text="-win" Foreground="{StaticResource Muted}" />
+                </TextBlock>
+                <TextBlock Text="{Binding Version}" FontFamily="{StaticResource Mono}" FontSize="10" Foreground="#4A5563"
+                           VerticalAlignment="Center" Margin="7,2,0,0" />
+                <TextBlock Text="avalonia" FontFamily="{StaticResource Mono}" FontSize="10" Foreground="{StaticResource AmberDim}"
+                           VerticalAlignment="Center" Margin="7,2,0,0" />
+
+                <Border x:Name="Pill" Margin="18,0,0,0" CornerRadius="11" Padding="9,3,11,3" Background="#0FFFFFFF" VerticalAlignment="Center"
+                        ToolTip.Tip="{Binding StatusText}">
+                    <StackPanel Orientation="Horizontal">
+                        <c:Lamp x:Name="StatusLamp" Width="10" Height="10" IsOn="True" Color="#7C8894" VerticalAlignment="Center" />
+                        <TextBlock Text="{Binding InterfaceName}" FontSize="12" Margin="7,0,0,0" VerticalAlignment="Center" />
+                        <TextBlock x:Name="StateWord" Text="offline" FontSize="12" Margin="6,0,0,0" Foreground="{StaticResource Muted}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,14,0" Spacing="0">
+                <StackPanel Orientation="Horizontal" Margin="0,0,16,0" ToolTip.Tip="Channel busy: someone else is transmitting">
+                    <c:Lamp IsOn="{Binding ChannelBusy}" Color="#7BD88F" Width="12" Height="12" />
+                    <TextBlock Text="DCD" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource Muted}" Margin="6,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,18,0" ToolTip.Tip="We are transmitting">
+                    <c:Lamp IsOn="{Binding Transmitting}" Color="#FF5A42" Width="12" Height="12" />
+                    <TextBlock Text="TX" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource Muted}" Margin="6,0,0,0" VerticalAlignment="Center" />
+                </StackPanel>
+                <Border Background="{StaticResource AmberGlass}" BorderBrush="{StaticResource AmberDim}" BorderThickness="1" CornerRadius="5" Padding="9,2"
+                        VerticalAlignment="Center" ToolTip.Tip="Your callsign" IsVisible="{Binding MyCall, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+                    <TextBlock Text="{Binding MyCall}" FontFamily="{StaticResource Mono}" FontSize="13" FontWeight="SemiBold" Foreground="{StaticResource Amber}" />
+                </Border>
+                <Button Classes="ghost" Margin="12,0,0,0" Padding="8,4" Command="{Binding ShowLevelHelperCommand}" ToolTip.Tip="Set levels"
+                        AutomationProperties.Name="Levels">
+                    <StackPanel Orientation="Horizontal">
+                        <Path Data="M1,2 H13 M1,7 H13 M1,12 H13 M4,0 V4 M10,5 V9 M6,10 V14" Stroke="{StaticResource Muted}" StrokeThickness="1.4" />
+                        <TextBlock Text="Levels" Margin="6,0,0,0" FontSize="12" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="ViewButton" Classes="ghost" Padding="8,4" ToolTip.Tip="Show or hide panes" AutomationProperties.Name="View">
+                    <StackPanel Orientation="Horizontal">
+                        <Path Data="M0.5,0.5 H13.5 V13.5 H0.5 Z M0.5,5 H13.5 M6,5 V13.5" Stroke="{StaticResource Muted}" StrokeThickness="1.2" />
+                        <TextBlock Text="View" Margin="6,0,0,0" FontSize="12" />
+                    </StackPanel>
+                </Button>
+                <Button Classes="ghost" Padding="8,4" Command="{Binding OpenSettingsCommand}" ToolTip.Tip="Settings" AutomationProperties.Name="Settings">
+                    <StackPanel Orientation="Horizontal">
+                        <Path Data="M7,4.5 A2.5,2.5 0 1 1 6.99,4.5 M7,0.5 V2.5 M7,11.5 V13.5 M0.5,7 H2.5 M11.5,7 H13.5 M2.4,2.4 L3.8,3.8 M10.2,10.2 L11.6,11.6 M2.4,11.6 L3.8,10.2 M10.2,3.8 L11.6,2.4"
+                              Stroke="{StaticResource Muted}" StrokeThickness="1.3" />
+                        <TextBlock Text="Settings" Margin="6,0,0,0" FontSize="12" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+
+            <StackPanel x:Name="CaptionButtons" Grid.Column="3" Orientation="Horizontal">
+                <Button x:Name="MinButton" Classes="caption" ToolTip.Tip="Minimise" AutomationProperties.Name="Minimise">
+                    <Path Data="M0,0.5 H10" Stroke="{StaticResource Muted}" StrokeThickness="1" />
+                </Button>
+                <Button x:Name="MaxButton" Classes="caption" ToolTip.Tip="Maximise" AutomationProperties.Name="Maximise">
+                    <Path Data="M0.5,0.5 H9.5 V9.5 H0.5 Z" Stroke="{StaticResource Muted}" StrokeThickness="1" />
+                </Button>
+                <Button x:Name="CloseButton" Classes="caption close" ToolTip.Tip="Close" AutomationProperties.Name="Close">
+                    <Path Data="M0,0 L10,10 M10,0 L0,10" Stroke="{StaticResource Muted}" StrokeThickness="1" />
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <!-- Control strip. -->
+        <Border DockPanel.Dock="Top" Background="{StaticResource Panel}" BorderBrush="{StaticResource Edge}" BorderThickness="0,1,0,1" Padding="16,7">
+            <WrapPanel VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,22,0">
+                    <TextBlock Text="MODE" Classes="caption" Margin="0,0,8,0" />
+                    <ComboBox ItemsSource="{Binding Modes}" SelectedItem="{Binding SelectedMode}" Width="150" FontFamily="{StaticResource Mono}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate DataType="vm:ModeChoice">
+                                <TextBlock Text="{Binding Mode}" FontFamily="{StaticResource Mono}" ToolTip.Tip="{Binding Description}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,22,0" IsEnabled="{Binding LevelsAvailable}">
+                    <TextBlock Text="RX" Classes="caption" Margin="0,0,8,0" />
+                    <Slider Width="90" Minimum="{Binding RxMinDb}" Maximum="{Binding RxMaxDb}" Value="{Binding RxLevelDb}" SmallChange="0.5" LargeChange="3"
+                            VerticalAlignment="Center" ToolTip.Tip="Windows receive level (never above 0 dB). Set the radio's volume first." />
+                    <TextBlock Text="{Binding RxLevelDb, Converter={x:Static local:Converters.Db}}" Classes="mono" FontSize="11" Width="50"
+                               VerticalAlignment="Center" Margin="8,0,10,0" TextAlignment="Right" />
+                    <c:LevelMeter PeakDb="{Binding PeakDb}" RmsDb="{Binding RmsDb}" Width="150" Height="12" VerticalAlignment="Center"
+                                  ToolTip.Tip="Input peak, -60 to 0 dBFS. Aim for -18 to -9 (green) on open-squelch noise; never red." />
+                    <TextBlock Text="{Binding LevelText}" Classes="mono" FontSize="11" Width="76" Margin="8,0,0,0" VerticalAlignment="Center"
+                               Foreground="{StaticResource Muted}" />
+                    <Border Background="#7A1F14" CornerRadius="3" Padding="5,1" VerticalAlignment="Center" IsVisible="{Binding Clipping}">
+                        <TextBlock Text="CLIP" FontSize="9" FontWeight="Bold" Foreground="#FFD0C4" />
+                    </Border>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,22,0" IsEnabled="{Binding LevelsAvailable}">
+                    <TextBlock Text="TX" Classes="caption" Margin="0,0,8,0" />
+                    <Slider Width="90" Minimum="{Binding TxMinDb}" Maximum="{Binding TxMaxDb}" Value="{Binding TxLevelDb}" SmallChange="0.5" LargeChange="2"
+                            VerticalAlignment="Center" ToolTip.Tip="Windows transmit level (never above 0 dB). Set it with the tone test." />
+                    <TextBlock Text="{Binding TxLevelDb, Converter={x:Static local:Converters.Db}}" Classes="mono" FontSize="11" Width="50"
+                               VerticalAlignment="Center" Margin="8,0,0,0" TextAlignment="Right" />
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,22,0">
+                    <TextBlock Text="TONE" Classes="caption" Margin="0,0,8,0" />
+                    <ComboBox ItemsSource="{Binding TxTestPresets}" SelectedItem="{Binding SelectedPreset}" Width="96" ToolTip.Tip="{Binding SelectedPreset.Label}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate DataType="vm:TxTestPreset">
+                                <TextBlock Text="{Binding ToneHz, StringFormat='{}{0:0} Hz'}" FontFamily="{StaticResource Mono}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <Button Command="{Binding ToggleTxTestCommand}" Margin="6,0,0,0" Padding="10,3" IsEnabled="{Binding IsLive}"
+                            Classes.accent="{Binding TxTestRunning}" ToolTip.Tip="Transmit a test tone. This keys the radio.">
+                        <Panel>
+                            <TextBlock Text="Send tone" IsVisible="{Binding !TxTestRunning}" />
+                            <TextBlock Text="Stop" IsVisible="{Binding TxTestRunning}" />
+                        </Panel>
+                    </Button>
+                </StackPanel>
+
+                <Button Content="Beacon now" Command="{Binding SendBeaconNowCommand}" Padding="10,3" IsEnabled="{Binding IsLive}"
+                        VerticalAlignment="Center" ToolTip.Tip="Send the beacon text now" />
+            </WrapPanel>
+        </Border>
+
+        <!-- Status bar -->
+        <Border DockPanel.Dock="Bottom" Background="{StaticResource Panel}" BorderBrush="{StaticResource Edge}" BorderThickness="0,1,0,0" Padding="14,4">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Right" Classes="mono" FontSize="11" Foreground="{StaticResource Muted}">
+                    <Run Text="rx " /><Run Text="{Binding FramesHeard}" Foreground="{StaticResource Ink}" /><Run Text="   tx " /><Run Text="{Binding FramesSent}" Foreground="{StaticResource Ink}" />
+                </TextBlock>
+                <TextBlock DockPanel.Dock="Right" Text="{Binding HygieneWarning}" FontSize="11" Foreground="#FFCF9A" Margin="0,0,18,0"
+                           TextTrimming="CharacterEllipsis" MaxWidth="480" />
+                <TextBlock Text="{Binding StatusText}" FontSize="11" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis" />
+            </DockPanel>
+        </Border>
+
+        <d:DockHost x:Name="Dock" Margin="6" />
+    </DockPanel>
+</Window>

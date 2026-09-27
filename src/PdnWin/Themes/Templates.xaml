@@ -1,6 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:vm="clr-namespace:PdnWin.ViewModels"
+                    xmlns:vm="clr-namespace:PdnWin.ViewModels;assembly=PdnWin.Presentation"
                     xmlns:mon="clr-namespace:PdnWin.Core.Monitoring;assembly=PdnWin.Core"
                     xmlns:ses="clr-namespace:PdnWin.Core.Sessions;assembly=PdnWin.Core">
 

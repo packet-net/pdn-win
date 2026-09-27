@@ -1,0 +1,123 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="clr-namespace:PdnWin.Ava.Controls"
+             xmlns:local="clr-namespace:PdnWin.Ava"
+             x:Class="PdnWin.Ava.Views.LevelHelperPane">
+    <UserControl.Styles>
+        <Style Selector="TextBlock.step">
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="LineHeight" Value="18" />
+        </Style>
+        <Style Selector="Border.num">
+            <Setter Property="Width" Value="20" />
+            <Setter Property="Height" Value="20" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Background" Value="{StaticResource AmberGlass}" />
+            <Setter Property="BorderBrush" Value="{StaticResource AmberDim}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="VerticalAlignment" Value="Top" />
+            <Setter Property="Margin" Value="0,0,10,0" />
+        </Style>
+        <Style Selector="Border.num TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{StaticResource Amber}" />
+        </Style>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{StaticResource Panel}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Edge}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="16,14" />
+            <Setter Property="Margin" Value="0,4,0,12" />
+        </Style>
+    </UserControl.Styles>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="18,14,18,18" MaxWidth="620" HorizontalAlignment="Left">
+
+            <TextBlock Text="Receive level" FontSize="17" FontWeight="SemiBold" />
+            <TextBlock Classes="step" Foreground="{StaticResource Muted}" Margin="0,4,0,14"
+                       Text="With the squelch open, an FM radio with nothing to hear makes steady hiss, and that hiss is what you set the level by. Clipping is what costs decodes; a quiet signal costs almost nothing." />
+
+            <DockPanel Margin="0,0,0,10">
+                <Border Classes="num"><TextBlock Text="1" /></Border>
+                <TextBlock Classes="step">Set the radio's squelch <Bold>fully open</Bold> (SQL 0 on a Quansheng). You should hear, and see below, constant hiss.</TextBlock>
+            </DockPanel>
+            <DockPanel Margin="0,0,0,10">
+                <Border Classes="num"><TextBlock Text="2" /></Border>
+                <TextBlock Classes="step">Turn the radio's <Bold>volume</Bold> until the bar peaks in the green band, well clear of the red, with the CLIP light dark.</TextBlock>
+            </DockPanel>
+
+            <Border Classes="card">
+                <StackPanel>
+                    <DockPanel>
+                        <Border DockPanel.Dock="Right" Background="#1F7BD88F" BorderBrush="{StaticResource Live}" BorderThickness="1"
+                                CornerRadius="10" Padding="9,2" VerticalAlignment="Center" IsVisible="{Binding Levels.Settled}">
+                            <TextBlock Text="LEVEL SET" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Live}" />
+                        </Border>
+                        <TextBlock Text="{Binding Levels.Instruction}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    </DockPanel>
+                    <c:LevelMeter PeakDb="{Binding PeakDb}" RmsDb="{Binding RmsDb}" Height="22" Margin="0,12,0,4" />
+                    <Grid>
+                        <TextBlock Text="-60" Classes="mono" FontSize="10" Foreground="{StaticResource Muted}" HorizontalAlignment="Left" />
+                        <TextBlock Text="-18 ..... -9" Classes="mono" FontSize="10" Foreground="{StaticResource Good}" HorizontalAlignment="Center" Margin="170,0,0,0" />
+                        <TextBlock Text="0 dBFS" Classes="mono" FontSize="10" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
+                    </Grid>
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <TextBlock Text="{Binding LevelText}" Classes="mono" />
+                        <Border Background="#7A1F14" CornerRadius="3" Padding="6,1" Margin="10,0,0,0" IsVisible="{Binding Clipping}">
+                            <TextBlock Text="CLIP" FontSize="10" FontWeight="Bold" Foreground="#FFD0C4" />
+                        </Border>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <DockPanel Margin="0,0,0,10">
+                <Border Classes="num"><TextBlock Text="3" /></Border>
+                <StackPanel>
+                    <TextBlock Classes="step">Leave the Windows receive level at <Bold>0 dB</Bold> and use the radio's knob. Only if the knob's steps are too coarse, trim it down here; it never goes above 0 dB.</TextBlock>
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <Slider Width="220" Minimum="{Binding RxMinDb}" Maximum="{Binding RxMaxDb}" Value="{Binding RxLevelDb}"
+                                SmallChange="0.5" LargeChange="3" IsEnabled="{Binding LevelsAvailable}" />
+                        <TextBlock Text="{Binding RxLevelDb, Converter={x:Static local:Converters.Db}}" Classes="mono" VerticalAlignment="Center" Margin="10,0,0,0" />
+                    </StackPanel>
+                </StackPanel>
+            </DockPanel>
+
+            <Border Height="1" Background="{StaticResource Edge}" Margin="0,14,0,16" />
+
+            <TextBlock Text="Transmit level" FontSize="17" FontWeight="SemiBold" />
+            <TextBlock Classes="step" Foreground="{StaticResource Muted}" Margin="0,4,0,14"
+                       Text="Too much audio overdeviates and splatters into the next channel; it sounds fine to you and bad to everyone else. The Bessel null sets deviation without a meter: a single tone at the right deviation makes the carrier vanish." />
+
+            <DockPanel Margin="0,0,0,10">
+                <Border Classes="num"><TextBlock Text="4" /></Border>
+                <TextBlock Classes="step" Text="Watch your own carrier on a second receiver: an SDR's waterfall, or a receiver in SSB mode. Pick the deviation you want (2.4 kHz suits a 12.5 kHz channel; 5 kHz a 25 kHz one) and send the tone into a dummy load or on a clear frequency." />
+            </DockPanel>
+
+            <Border Classes="card">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <ComboBox ItemsSource="{Binding TxTestPresets}" SelectedItem="{Binding SelectedPreset}" Width="300">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Label}" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <Button Command="{Binding ToggleTxTestCommand}" Padding="16,4" IsEnabled="{Binding IsLive}" Content="Send tone" />
+                    </StackPanel>
+                    <TextBlock Classes="step" Margin="0,12,0,6" Text="While it sends, raise the Windows transmit level from low until the carrier disappears. Stop there." />
+                    <StackPanel Orientation="Horizontal">
+                        <Slider Width="260" Minimum="{Binding TxMinDb}" Maximum="{Binding TxMaxDb}" Value="{Binding TxLevelDb}"
+                                SmallChange="0.5" LargeChange="2" IsEnabled="{Binding LevelsAvailable}" />
+                        <TextBlock Text="{Binding TxLevelDb, Converter={x:Static local:Converters.Db}}" Classes="mono" VerticalAlignment="Center" Margin="10,0,0,0" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

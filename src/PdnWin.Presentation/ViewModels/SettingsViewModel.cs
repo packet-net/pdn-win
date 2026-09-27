@@ -2,60 +2,18 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Packet.Core;
-using Packet.SoundModem.Windows;
 using PdnWin.Core.Settings;
 using PdnWin.Core.Stations;
 using PdnWin.Core.Stations.SoundModem;
-using PdnWin.Hardware;
+using PdnWin.Hosting;
 
 namespace PdnWin.ViewModels;
-
-/// <summary>An interface in the picker.</summary>
-public sealed class InterfaceChoice(RadioInterface found)
-{
-    /// <summary>What was discovered.</summary>
-    public RadioInterface Found { get; } = found;
-
-    /// <summary>Its name.</summary>
-    public string Name => Found.Name;
-
-    /// <summary>"AIOC", "CM108" or "Sound card".</summary>
-    public string Kind => Found.Kind switch
-    {
-        RadioInterfaceKind.Aioc => "AIOC",
-        RadioInterfaceKind.Cm108 => "CM108",
-        _ => "SOUND CARD",
-    };
-
-    /// <summary>Whether it looks like a radio interface rather than the PC's own audio.</summary>
-    public bool IsRadio => Found.Kind != RadioInterfaceKind.SoundCard;
-
-    /// <summary>A line of detail.</summary>
-    public string Detail
-    {
-        get
-        {
-            var parts = new List<string>();
-            parts.Add(Found.IsComplete ? "in + out" : Found.Capture is null ? "output only" : "input only");
-            if (Found.Hid is not null)
-            {
-                parts.Add("HID PTT");
-            }
-
-            if (Found.SerialPort is not null)
-            {
-                parts.Add(Found.SerialPort);
-            }
-
-            return string.Join("  -  ", parts);
-        }
-    }
-}
 
 /// <summary>The settings dialog.</summary>
 public sealed partial class SettingsViewModel : ObservableObject
 {
     private readonly AppSettings _original;
+    private readonly IStationHardware? _hardware;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanSave))]
@@ -63,7 +21,7 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanSave))]
-    private InterfaceChoice? _selectedInterface;
+    private InterfaceOption? _selectedInterface;
 
     [ObservableProperty]
     private PttKind _ptt;
@@ -122,10 +80,13 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     private string _scanResult = string.Empty;
 
-    /// <summary>Loads the dialog from <paramref name="settings"/>.</summary>
-    public SettingsViewModel(AppSettings settings)
+    /// <summary>Loads the dialog from <paramref name="settings"/>, finding interfaces through
+    /// <paramref name="hardware"/> (null where the platform has none yet).</summary>
+    public SettingsViewModel(AppSettings settings, IStationHardware? hardware)
     {
+        ArgumentNullException.ThrowIfNull(settings);
         _original = settings;
+        _hardware = hardware;
         _myCall = settings.MyCall;
         _ptt = settings.Interface.Ptt;
         _gpio = settings.Interface.Gpio;
@@ -148,7 +109,7 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 
     /// <summary>Discovered interfaces, radio interfaces first.</summary>
-    public ObservableCollection<InterfaceChoice> Interfaces { get; } = [];
+    public ObservableCollection<InterfaceOption> Interfaces { get; } = [];
 
     /// <summary>Every COM port, for serial PTT.</summary>
     public ObservableCollection<string> SerialPorts { get; } = [];
@@ -160,38 +121,36 @@ public sealed partial class SettingsViewModel : ObservableObject
     public IReadOnlyList<PttKind> PttKinds { get; } = [PttKind.Cm108Hid, PttKind.Serial, PttKind.None];
 
     /// <summary>Whether enough is filled in to save.</summary>
-    public bool CanSave => Callsign.TryParse(MyCall.Trim().ToUpperInvariant(), out _) && SelectedInterface is { Found.IsComplete: true };
+    public bool CanSave => Callsign.TryParse(MyCall.Trim().ToUpperInvariant(), out _) && SelectedInterface is not null;
 
     /// <summary>Finds the interfaces present and selects the configured one, or the first radio one.</summary>
     [RelayCommand]
     public async Task ScanAsync()
     {
+        if (_hardware is null)
+        {
+            ScanResult = "Radio interfaces are not supported on this platform yet.";
+            return;
+        }
+
         Scanning = true;
         try
         {
-            IReadOnlyList<RadioInterface> found = await Task.Run(RadioInterfaces.Discover);
-            int radios = found.Count(r => r.IsComplete && r.Kind != RadioInterfaceKind.SoundCard);
-            ScanResult = found.Count == 0
-                ? "No audio devices found."
-                : $"{found.Count} audio device{(found.Count == 1 ? "" : "s")}, {radios} radio interface{(radios == 1 ? "" : "s")}."
-                  + (radios == 0 ? " Plug in an AIOC or CM108 interface and press Rescan." : string.Empty);
+            DiscoveryResult found = await _hardware.DiscoverAsync(_original.Interface);
+            ScanResult = found.Summary;
             Interfaces.Clear();
-            foreach (RadioInterface r in found.Where(r => r.IsComplete))
+            foreach (InterfaceOption option in found.Options)
             {
-                Interfaces.Add(new InterfaceChoice(r));
+                Interfaces.Add(option);
             }
 
             SerialPorts.Clear();
-            foreach (string port in System.IO.Ports.SerialPort.GetPortNames().Order(StringComparer.OrdinalIgnoreCase))
+            foreach (string port in found.SerialPorts)
             {
                 SerialPorts.Add(port);
             }
 
-            InterfaceSettings current = _original.Interface;
-            SelectedInterface =
-                (InterfaceResolver.Resolve(current, found) is { } resolved
-                    ? Interfaces.FirstOrDefault(i => ReferenceEquals(i.Found, resolved.Found))
-                    : null)
+            SelectedInterface = found.Current
                 ?? Interfaces.FirstOrDefault(i => i.IsRadio)
                 ?? Interfaces.FirstOrDefault();
         }
@@ -205,15 +164,15 @@ public sealed partial class SettingsViewModel : ObservableObject
         }
     }
 
-    partial void OnSelectedInterfaceChanged(InterfaceChoice? value)
+    partial void OnSelectedInterfaceChanged(InterfaceOption? value)
     {
-        if (value is null || _original.Interface.ContainerId == value.Found.ContainerId?.ToString())
+        if (value is null || _hardware is null || _original.Interface.ContainerId == value.Key)
         {
             return;
         }
 
         // A different device: take its suggested PTT.
-        InterfaceSettings suggested = InterfaceResolver.From(value.Found, _original.Interface);
+        InterfaceSettings suggested = _hardware.Suggest(value, _original.Interface);
         Ptt = suggested.Ptt;
         SerialPort = suggested.SerialPort ?? SerialPort;
         SerialDtr = suggested.SerialDtr;
@@ -223,8 +182,8 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// <summary>The settings as edited.</summary>
     public AppSettings Build()
     {
-        InterfaceSettings iface = SelectedInterface is { } choice
-            ? InterfaceResolver.From(choice.Found, _original.Interface)
+        InterfaceSettings iface = SelectedInterface is { } choice && _hardware is not null
+            ? _hardware.Suggest(choice, _original.Interface)
             : _original.Interface;
         iface = iface with
         {
@@ -233,7 +192,6 @@ public sealed partial class SettingsViewModel : ObservableObject
             SerialPort = SerialPort,
             SerialDtr = SerialDtr,
             SerialRts = SerialRts,
-            HidPath = SelectedInterface?.Found.Hid?.Path ?? iface.HidPath,
         };
 
         return _original with

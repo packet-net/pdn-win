@@ -1,0 +1,77 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:PdnWin.Ava"
+             xmlns:vm="clr-namespace:PdnWin.ViewModels;assembly=PdnWin.Presentation"
+             x:Class="PdnWin.Ava.App"
+             RequestedThemeVariant="Dark">
+    <Application.Styles>
+        <FluentTheme>
+            <FluentTheme.Palettes>
+                <!-- Fluent's dark palette, recoloured to the station page: amber accent,
+                     near-black regions, grey-blue chrome. -->
+                <ColorPaletteResources x:Key="Dark"
+                                       Accent="#F5A83C"
+                                       RegionColor="#0A0D11"
+                                       AltHigh="#0A0D11" AltLow="#0C1016" AltMedium="#0C1016" AltMediumHigh="#0A0D11" AltMediumLow="#11161D"
+                                       BaseHigh="#D9E2EA" BaseLow="#2A3441" BaseMedium="#7C8894" BaseMediumHigh="#B8C3CE" BaseMediumLow="#5D6875"
+                                       ChromeAltLow="#B8C3CE" ChromeBlackHigh="#000000" ChromeBlackLow="#7C8894" ChromeBlackMedium="#0A0D11" ChromeBlackMediumLow="#11161D"
+                                       ChromeDisabledHigh="#2A3441" ChromeDisabledLow="#5D6875" ChromeGray="#7C8894" ChromeHigh="#2A3441"
+                                       ChromeLow="#0C1016" ChromeMedium="#161B22" ChromeMediumLow="#11161D" ChromeWhite="#D9E2EA"
+                                       ListLow="#1A212B" ListMedium="#222B37" ErrorText="#F27E7E" />
+            </FluentTheme.Palettes>
+        </FluentTheme>
+        <StyleInclude Source="avares://pdn-win-avalonia/Styles/Theme.axaml" />
+    </Application.Styles>
+
+    <Application.DataTemplates>
+        <!-- A monitor row: time, direction, the BPQ header coloured by frame kind, then the text and
+             the receive diagnostics indented under it. Our own frames carry a cyan rule. -->
+        <DataTemplate DataType="vm:MonitorItem">
+            <Border Classes="monitor-row" Classes.tx="{Binding IsTx}" Padding="8,1,8,2">
+                <Grid ColumnDefinitions="62,24,*">
+                    <TextBlock Text="{Binding Time}" Classes="mono" Foreground="{StaticResource Muted}" />
+                    <TextBlock Grid.Column="1" Classes="mono dir" Text="{Binding Direction}" FontSize="10" Margin="0,2,0,0" />
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="{Binding Header}" Classes="mono" TextWrapping="Wrap"
+                                   Foreground="{Binding Kind, Converter={x:Static local:Converters.FrameKindBrush}}" />
+                        <TextBlock Text="{Binding Info}" Classes="mono" TextWrapping="Wrap" Margin="14,0,0,0"
+                                   IsVisible="{Binding Info, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                        <StackPanel Orientation="Horizontal" Margin="14,1,0,1" IsVisible="{Binding Detail, Converter={x:Static ObjectConverters.IsNotNull}}">
+                            <TextBlock Text="{Binding Detail}" Classes="mono" FontSize="10.5" Foreground="{StaticResource Muted}" />
+                            <Border Background="#7A1F14" CornerRadius="3" Padding="5,0" Margin="8,0,0,0" VerticalAlignment="Center"
+                                    IsVisible="{Binding Badge, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                <TextBlock Text="{Binding Badge}" FontSize="9" FontWeight="Bold" Foreground="#FFD0C4" />
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <!-- A transcript line: theirs in ink, ours in amber, the session's own notices muted. -->
+        <DataTemplate DataType="vm:TranscriptLine">
+            <Grid ColumnDefinitions="44,*" Margin="10,0">
+                <TextBlock Text="{Binding Time}" Classes="mono" FontSize="10.5" Foreground="#3E4855" Margin="0,1,0,0" />
+                <TextBlock Grid.Column="1" Text="{Binding Text}" Classes="mono" FontSize="13" TextWrapping="Wrap"
+                           Foreground="{Binding Kind, Converter={x:Static local:Converters.LineKindBrush}}"
+                           FontStyle="{Binding Kind, Converter={x:Static local:Converters.LineKindStyle}}" />
+            </Grid>
+        </DataTemplate>
+
+        <!-- A heard station. -->
+        <DataTemplate DataType="vm:HeardStation">
+            <Border Padding="12,6" BorderBrush="#141A23" BorderThickness="0,0,0,1">
+                <StackPanel>
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Right" Text="{Binding Ago}" Classes="mono" FontSize="11" Foreground="{StaticResource Muted}" />
+                        <TextBlock Text="{Binding Call}" Classes="mono" FontWeight="SemiBold" Foreground="{StaticResource Amber}" />
+                    </DockPanel>
+                    <TextBlock Classes="mono" FontSize="10.5" Foreground="{StaticResource Muted}" TextTrimming="CharacterEllipsis">
+                        <Run Text="&gt; " /><Run Text="{Binding LastTo}" Foreground="{StaticResource Ink}" />
+                        <Run Text="  " /><Run Text="{Binding Frames}" /><Run Text=" fr  " /><Run Text="{Binding Quality}" />
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+    </Application.DataTemplates>
+</Application>

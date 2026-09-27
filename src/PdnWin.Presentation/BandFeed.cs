@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using PdnWin.Core.Stations;
 
-namespace PdnWin.Controls;
+namespace PdnWin.Presentation;
 
 /// <summary>A spectrum line as the display keeps it.</summary>
 /// <param name="Index">Line number.</param>
@@ -81,3 +81,10 @@ public sealed class BandFeed
         _latest = null;
     }
 }
+
+/// <summary>A shaded part of the band: a modem's passband.</summary>
+/// <param name="LowHz">Lower edge.</param>
+/// <param name="HighHz">Upper edge.</param>
+/// <param name="Label">What it is, e.g. "0 afsk1200".</param>
+/// <param name="Marks">Tone frequencies worth a dashed line (mark and space).</param>
+public sealed record Passband(double LowHz, double HighHz, string Label, IReadOnlyList<double> Marks);

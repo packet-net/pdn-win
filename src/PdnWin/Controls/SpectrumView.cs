@@ -2,15 +2,9 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Media;
 using PdnWin.Core.Stations;
+using PdnWin.Presentation;
 
 namespace PdnWin.Controls;
-
-/// <summary>A shaded part of the band: a modem's passband.</summary>
-/// <param name="LowHz">Lower edge.</param>
-/// <param name="HighHz">Upper edge.</param>
-/// <param name="Label">What it is, e.g. "0 afsk1200".</param>
-/// <param name="Marks">Tone frequencies worth a dashed line (mark and space).</param>
-public sealed record Passband(double LowHz, double HighHz, string Label, IReadOnlyList<double> Marks);
 
 /// <summary>
 /// The spectrum: the latest line as a cyan trace over a soft fill, a decaying amber peak-hold,

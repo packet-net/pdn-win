@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:c="clr-namespace:PdnWin.Controls"
         xmlns:d="clr-namespace:PdnWin.Docking"
-        xmlns:vm="clr-namespace:PdnWin.ViewModels"
+        xmlns:vm="clr-namespace:PdnWin.ViewModels;assembly=PdnWin.Presentation"
         Title="pdn-win" Icon="/Assets/pdn-win.ico" Width="1440" Height="900" MinWidth="980" MinHeight="600"
         Background="{StaticResource Bg}" Foreground="{StaticResource Ink}"
         FontFamily="{StaticResource Sans}" UseLayoutRounding="True"

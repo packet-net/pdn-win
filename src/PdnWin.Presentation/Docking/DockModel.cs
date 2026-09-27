@@ -1,8 +1,19 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Windows.Controls;
+
 
 namespace PdnWin.Docking;
+
+/// <summary>Which way a split lays out its children; the layout model's own, so that it belongs
+/// to no UI framework.</summary>
+public enum DockOrientation
+{
+    /// <summary>Side by side.</summary>
+    Horizontal,
+
+    /// <summary>Stacked.</summary>
+    Vertical,
+}
 
 /// <summary>Where a dragged pane lands relative to a group.</summary>
 public enum DockZone
@@ -41,7 +52,7 @@ public abstract class DockNode
         }
 
         var split = new DockSplit(
-            node["orientation"]!.GetValue<string>() == "h" ? Orientation.Horizontal : Orientation.Vertical);
+            node["orientation"]!.GetValue<string>() == "h" ? DockOrientation.Horizontal : DockOrientation.Vertical);
         JsonArray children = node["children"]!.AsArray();
         JsonArray weights = node["weights"]!.AsArray();
         for (int i = 0; i < children.Count; i++)
@@ -54,10 +65,10 @@ public abstract class DockNode
 }
 
 /// <summary>A row or column of nodes, each with a relative size.</summary>
-public sealed class DockSplit(Orientation orientation) : DockNode
+public sealed class DockSplit(DockOrientation orientation) : DockNode
 {
     /// <summary>Horizontal lays children side by side; vertical stacks them.</summary>
-    public Orientation Orientation { get; } = orientation;
+    public DockOrientation Orientation { get; } = orientation;
 
     /// <summary>The children, in order.</summary>
     public List<DockNode> Children { get; } = [];
@@ -81,7 +92,7 @@ public sealed class DockSplit(Orientation orientation) : DockNode
 
     internal override JsonNode ToJson() => new JsonObject
     {
-        ["orientation"] = Orientation == Orientation.Horizontal ? "h" : "v",
+        ["orientation"] = Orientation == DockOrientation.Horizontal ? "h" : "v",
         ["weights"] = new JsonArray(Weights.Select(w => JsonValue.Create(Math.Round(w, 4))).ToArray<JsonNode?>()),
         ["children"] = new JsonArray(Children.Select(c => c.ToJson()).ToArray<JsonNode?>()),
     };
@@ -194,13 +205,13 @@ public sealed class DockLayout(DockNode root)
 
         var split = (DockSplit)Root;
         var group = new DockGroup([pane]) { Selected = pane };
-        if (split.Orientation == Orientation.Horizontal)
+        if (split.Orientation == DockOrientation.Horizontal)
         {
             split.Add(group, split.Weights.Average() * 0.5);
         }
         else
         {
-            var row = new DockSplit(Orientation.Horizontal);
+            var row = new DockSplit(DockOrientation.Horizontal);
             Root = row;
             row.Add(split, 3).Add(group, 1);
         }
@@ -233,7 +244,7 @@ public sealed class DockLayout(DockNode root)
         }
 
         var group = new DockGroup([pane]) { Selected = pane };
-        Orientation orientation = zone is DockZone.Left or DockZone.Right ? Orientation.Horizontal : Orientation.Vertical;
+        DockOrientation orientation = zone is DockZone.Left or DockZone.Right ? DockOrientation.Horizontal : DockOrientation.Vertical;
         bool before = zone is DockZone.Left or DockZone.Top;
         DockSplit? parent = target.Parent;
 

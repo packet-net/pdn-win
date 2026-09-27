@@ -26,9 +26,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\PdnWin.Core\PdnWin.Core.csproj" />
-    <PackageReference Include="pdn-soundmodem-windows" Condition="'$(PdnSoundModemRoot)' == ''" />
-    <ProjectReference Include="$(PdnSoundModemRoot)\src\Packet.SoundModem.Windows\Packet.SoundModem.Windows.csproj" Condition="'$(PdnSoundModemRoot)' != ''" />
+    <ProjectReference Include="..\PdnWin.Presentation\PdnWin.Presentation.csproj" />
+    <ProjectReference Include="..\PdnWin.Windows\PdnWin.Windows.csproj" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
   </ItemGroup>
 

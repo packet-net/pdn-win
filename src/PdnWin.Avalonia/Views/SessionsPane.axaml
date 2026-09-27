@@ -1,0 +1,48 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:c="clr-namespace:PdnWin.Ava.Controls"
+             xmlns:local="clr-namespace:PdnWin.Ava"
+             xmlns:vm="clr-namespace:PdnWin.ViewModels;assembly=PdnWin.Presentation"
+             x:Class="PdnWin.Ava.Views.SessionsPane">
+    <TabControl ItemsSource="{Binding Sessions.Tabs}" SelectedItem="{Binding Sessions.Selected}" Padding="0">
+        <TabControl.ItemTemplate>
+            <DataTemplate DataType="vm:SessionTabViewModel">
+                <StackPanel Orientation="Horizontal" Spacing="0">
+                    <Ellipse Width="7" Height="7" Margin="0,0,7,0" VerticalAlignment="Center" Fill="{StaticResource AmberDim}"
+                             IsVisible="{Binding IsConsole}" />
+                    <Ellipse Width="7" Height="7" Margin="0,0,7,0" VerticalAlignment="Center"
+                             Fill="{Binding State, Converter={x:Static local:Converters.LinkStateBrush}}"
+                             IsVisible="{Binding !IsConsole}" />
+                    <TextBlock Text="{Binding Title}" FontFamily="{StaticResource Mono}" FontSize="12" VerticalAlignment="Center" />
+                    <Ellipse Width="6" Height="6" Margin="6,0,0,0" VerticalAlignment="Center" Fill="{StaticResource Amber}"
+                             IsVisible="{Binding HasUnread}" />
+                    <Button Classes="ghost" Command="{Binding CloseCommand}" Padding="4" Margin="5,0,-4,0"
+                            IsVisible="{Binding !IsConsole}" ToolTip.Tip="Close this session">
+                        <Path Data="M 0,0 L 6,6 M 6,0 L 0,6" Stroke="{StaticResource Muted}" StrokeThickness="1.3" />
+                    </Button>
+                </StackPanel>
+            </DataTemplate>
+        </TabControl.ItemTemplate>
+        <TabControl.ContentTemplate>
+            <DataTemplate DataType="vm:SessionTabViewModel">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Padding="10,5" BorderBrush="{StaticResource Edge}" BorderThickness="0,0,0,1"
+                            IsVisible="{Binding !IsConsole}">
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button Content="Disconnect" Command="{Binding DisconnectCommand}" Padding="10,2" FontSize="11"
+                                        IsVisible="{Binding IsConnected}" />
+                                <Button Content="Reconnect" Command="{Binding ReconnectCommand}" Padding="10,2" FontSize="11"
+                                        Classes="accent" IsVisible="{Binding IsDown}" />
+                            </StackPanel>
+                            <TextBlock VerticalAlignment="Center" Classes="mono" FontSize="11" Foreground="{StaticResource Muted}">
+                                <Run Text="{Binding Title}" Foreground="{StaticResource Amber}" /><Run Text="  " /><Run Text="{Binding State}" />
+                            </TextBlock>
+                        </DockPanel>
+                    </Border>
+                    <c:LogList ItemsSource="{Binding Lines}" Padding="0,6" />
+                </DockPanel>
+            </DataTemplate>
+        </TabControl.ContentTemplate>
+    </TabControl>
+</UserControl>

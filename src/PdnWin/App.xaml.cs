@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Threading;
 using PdnWin.Core.Settings;
+using PdnWin.Hardware;
 using PdnWin.ViewModels;
 using PdnWin.Views;
 
@@ -20,7 +21,7 @@ public partial class App : Application
         // PDNWIN_SETTINGS points a development run at a settings file of its own.
         string? settingsPath = Environment.GetEnvironmentVariable("PDNWIN_SETTINGS");
         SettingsStore store = string.IsNullOrWhiteSpace(settingsPath) ? SettingsStore.Default : new SettingsStore(settingsPath);
-        var model = new MainViewModel(store, Dispatcher) { Simulate = simulate };
+        var model = new MainViewModel(store, new WpfUiThread(Dispatcher), new WindowsStationHardware()) { Simulate = simulate, DemoScript = e.Args.Contains("--demo", StringComparer.OrdinalIgnoreCase) ? MainViewModel.DefaultDemo : null };
         var window = new MainWindow(model);
         MainWindow = window;
         window.Show();

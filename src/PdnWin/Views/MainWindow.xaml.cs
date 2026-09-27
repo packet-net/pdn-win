@@ -74,19 +74,19 @@ public partial class MainWindow : Window
 
     private static DockLayout DefaultLayout()
     {
-        var band = new DockSplit(Orientation.Vertical)
+        var band = new DockSplit(DockOrientation.Vertical)
             .Add(new DockGroup(["spectrum"]), 0.6)
             .Add(new DockGroup(["waterfall"]), 1);
-        var top = new DockSplit(Orientation.Horizontal)
+        var top = new DockSplit(DockOrientation.Horizontal)
             .Add(band, 3.2)
             .Add(new DockGroup(["heard"]), 1);
-        var talk = new DockSplit(Orientation.Vertical)
+        var talk = new DockSplit(DockOrientation.Vertical)
             .Add(new DockGroup(["sessions"]), 1)
             .Add(new DockGroup(["input"]), 0.22);
-        var bottom = new DockSplit(Orientation.Horizontal)
+        var bottom = new DockSplit(DockOrientation.Horizontal)
             .Add(new DockGroup(["monitor"]), 1)
             .Add(talk, 1.2);
-        return new DockLayout(new DockSplit(Orientation.Vertical).Add(top, 1.15).Add(bottom, 1.4));
+        return new DockLayout(new DockSplit(DockOrientation.Vertical).Add(top, 1.15).Add(bottom, 1.4));
     }
 
     private void Register(string id, string title, string template, string? tools = null)
@@ -126,7 +126,7 @@ public partial class MainWindow : Window
 
     private void OpenSettings()
     {
-        var dialog = new SettingsWindow(_model.Settings) { Owner = this };
+        var dialog = new SettingsWindow(_model.Settings, _model.Hardware) { Owner = this };
         if (dialog.ShowDialog() == true && dialog.Result is { } settings)
         {
             _ = _model.ApplySettingsAsync(settings);

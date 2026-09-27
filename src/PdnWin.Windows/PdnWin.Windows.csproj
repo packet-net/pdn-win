@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The station hardware on Windows: WASAPI and HID/serial PTT through pdn-soundmodem-windows,
+       interface discovery, endpoint levels and hygiene, behind PdnWin.Presentation's
+       IStationHardware. No UI framework, so both front-ends use it. Plain net10.0 with the
+       Windows-only surface marked, as pdn-soundmodem-windows is, so a cross-platform front-end can
+       reference it and call it only when running on Windows. -->
+
+  <PropertyGroup>
+    <RootNamespace>PdnWin.Hardware</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PdnWin.Presentation\PdnWin.Presentation.csproj" />
+    <PackageReference Include="pdn-soundmodem-windows" Condition="'$(PdnSoundModemRoot)' == ''" />
+    <ProjectReference Include="$(PdnSoundModemRoot)\src\Packet.SoundModem.Windows\Packet.SoundModem.Windows.csproj" Condition="'$(PdnSoundModemRoot)' != ''" />
+    <PackageReference Include="System.IO.Ports" />
+  </ItemGroup>
+
+</Project>

@@ -1,12 +1,9 @@
-using System.IO;
 using System.Globalization;
-using System.Windows.Threading;
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Packet.Core;
 using Packet.SoundModem.Modems;
-using Packet.SoundModem.Windows;
-using PdnWin.Controls;
 using PdnWin.Core.Beacons;
 using PdnWin.Core.Monitoring;
 using PdnWin.Core.Sessions;
@@ -14,7 +11,8 @@ using PdnWin.Core.Settings;
 using PdnWin.Core.Stations;
 using PdnWin.Core.Stations.Simulation;
 using PdnWin.Core.Stations.SoundModem;
-using PdnWin.Hardware;
+using PdnWin.Hosting;
+using PdnWin.Presentation;
 
 namespace PdnWin.ViewModels;
 
@@ -49,18 +47,20 @@ public sealed record ModeChoice(string Mode, string Description)
 /// </summary>
 public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 {
-    private readonly Dispatcher _ui;
+    private readonly IUiThread _ui;
+    private readonly IStationHardware? _hardware;
     private readonly SettingsStore _store;
-    private readonly DispatcherTimer _fast;
-    private readonly DispatcherTimer _slow;
-    private readonly DispatcherTimer _retry;
+    private readonly IDisposable _fast;
+    private readonly IDisposable _slow;
+    private readonly IDisposable _retry;
     private readonly BeaconScheduler _beacon;
-    private WindowsSoundCard? _card;
+    private ISoundCard? _card;
     private SimulatedChannel? _simulation;
     private SoundModemStation? _station;
     private SessionManager? _sessions;
-    private EndpointLevel? _rxLevel;
-    private EndpointLevel? _txLevel;
+    private ILevelControl? _rxLevel;
+    private ILevelControl? _txLevel;
+    private bool _retryArmed;
     private DateTime _clipUntil;
     private bool _applyingLevels;
     private bool _starting;
@@ -150,10 +150,17 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     private string? _hygieneWarning;
 
     /// <summary>Creates the view model; <see cref="StartAsync"/> puts the station on.</summary>
-    public MainViewModel(SettingsStore store, Dispatcher ui)
+    /// <param name="store">Where settings live.</param>
+    /// <param name="ui">The front-end's UI thread.</param>
+    /// <param name="hardware">The platform's radio interfaces, or null where there is no support
+    /// yet (only the simulator then runs).</param>
+    public MainViewModel(SettingsStore store, IUiThread ui, IStationHardware? hardware)
     {
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(ui);
         _store = store;
         _ui = ui;
+        _hardware = hardware;
         Settings = store.Load();
         MyCall = Settings.MyCall;
         Modes = FmModes.All.Select(m => new ModeChoice(m.Mode, m.Description)).ToList();
@@ -169,18 +176,29 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         _beacon = new BeaconScheduler(SendBeaconAsync);
         _beacon.SendFailed += ex => OnUi(() => Sessions.Console.Note("beacon not sent: " + ex.Message));
 
-        _fast = new DispatcherTimer(TimeSpan.FromMilliseconds(100), DispatcherPriority.Background, (_, _) => FastTick(), ui);
-        _slow = new DispatcherTimer(TimeSpan.FromSeconds(5), DispatcherPriority.Background, (_, _) => Heard.Tick(), ui);
-        _retry = new DispatcherTimer(TimeSpan.FromSeconds(3), DispatcherPriority.Background, async (_, _) => await RetryAsync(), ui);
-        _fast.Start();
-        _slow.Start();
+        _fast = ui.StartTimer(TimeSpan.FromMilliseconds(100), FastTick);
+        _slow = ui.StartTimer(TimeSpan.FromSeconds(5), Heard.Tick);
+        _retry = ui.StartTimer(TimeSpan.FromSeconds(3), () => _ = RetryAsync());
     }
+
+    /// <summary>The hardware this front-end runs on, for the settings dialog; null where there is none.</summary>
+    public IStationHardware? Hardware => _hardware;
 
     /// <summary>What is stored.</summary>
     public AppSettings Settings { get; private set; }
 
     /// <summary>Run against the built-in simulated channel rather than a radio (--simulate).</summary>
     public bool Simulate { get; init; }
+
+    /// <summary>
+    /// With the simulator, a scripted session typed into the input line one entry at a time
+    /// (--demo), so two front-ends can be compared doing the same thing. Null for none.
+    /// </summary>
+    public IReadOnlyList<string>? DemoScript { get; init; }
+
+    /// <summary>The script --demo runs: connect to the simulated node, talk, leave.</summary>
+    public static IReadOnlyList<string> DefaultDemo { get; } =
+        ["C GB7SIM", "hello from pdn-win", "73 and thanks for the echo", "BYE"];
 
     /// <summary>The app's version, as the release pipeline stamped it ("0.0.0-dev" from a plain build).</summary>
     public string Version { get; } =
@@ -229,7 +247,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         int generation = ++_generation;
         try
         {
-            _retry.Stop();
+            _retryArmed = false;
             await StopAsync();
             if (Simulate)
             {
@@ -244,37 +262,47 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
                 return;
             }
 
+            if (_hardware is null)
+            {
+                Fault("radio interfaces are not supported on this platform yet; run with --simulate", retry: false);
+                return;
+            }
+
             Status = StationStatus.Starting;
             StatusText = "Opening the interface...";
             InterfaceName = Settings.Interface.Name ?? "Interface";
 
-            IReadOnlyList<RadioInterface> present = await Task.Run(RadioInterfaces.Discover);
-            if (InterfaceResolver.Resolve(Settings.Interface, present) is not { } resolved)
+            OpenedInterface? opened = await _hardware.OpenAsync(
+                Settings.Interface,
+                note => OnUi(() => Sessions.Console.Note(note)),
+                ex => OnUi(() =>
+                {
+                    if (generation == _generation)
+                    {
+                        Fault($"{InterfaceName} stopped: {ex.Message}", retry: true);
+                        _ = StopAsync();
+                    }
+                }));
+            if (opened is null)
             {
                 Fault($"{Settings.Interface.Name ?? "The interface"} is not plugged in; waiting for it", retry: true);
                 return;
             }
 
-            if (resolved.Settings != Settings.Interface)
+            if (opened.Interface != Settings.Interface)
             {
-                Save(Settings with { Interface = resolved.Settings });
+                Save(Settings with { Interface = opened.Interface });
             }
 
-            await ApplyHygieneAsync(resolved.Settings);
-            OpenLevels(resolved.Settings);
-
-            WindowsSoundCard card = await Task.Run(() => WindowsSoundCard.Open(resolved.Settings));
-            card.Faulted += ex => OnUi(() =>
+            HygieneWarning = opened.Warnings.Count == 0 ? null : string.Join(" ", opened.Warnings);
+            foreach (string warning in opened.Warnings)
             {
-                if (generation == _generation)
-                {
-                    Fault($"{InterfaceName} stopped: {ex.Message}", retry: true);
-                    _ = StopAsync();
-                }
-            });
-            _card = card;
+                Sessions.Console.Note("check: " + warning);
+            }
 
-            await RunStationAsync(card, generation);
+            _card = opened.Card;
+            OpenLevels(opened.Receive, opened.Transmit);
+            await RunStationAsync(opened.Card, generation);
         }
         catch (Exception ex) when (ex is InvalidOperationException or IOException or System.ComponentModel.Win32Exception
                                        or System.Runtime.InteropServices.COMException or UnauthorizedAccessException
@@ -302,6 +330,29 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         _simulation = await SimulatedChannel.StartAsync(Settings.Modem.Mode);
         Sessions.Console.Note($"simulator: a channel with {SimulatedChannel.NodeCall} on it; try C {SimulatedChannel.NodeCall}");
         await RunStationAsync(_simulation.Card, generation);
+        if (DemoScript is { Count: > 0 } script)
+        {
+            _ = RunDemoAsync(script, generation);
+        }
+    }
+
+    private async Task RunDemoAsync(IReadOnlyList<string> script, int generation)
+    {
+        foreach (string line in script)
+        {
+            // Long enough for each exchange to finish on a 1200 baud channel before the next.
+            await Task.Delay(TimeSpan.FromSeconds(9));
+            if (generation != _generation)
+            {
+                return;
+            }
+
+            OnUi(() =>
+            {
+                Sessions.Input = line;
+                Sessions.SendCommand.Execute(null);
+            });
+        }
     }
 
     private async Task RunStationAsync(ISoundCard card, int generation)
@@ -347,7 +398,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         Sessions.Online = false;
         SessionManager? sessions = _sessions;
         SoundModemStation? station = _station;
-        WindowsSoundCard? card = _card;
+        ISoundCard? card = _card;
         _sessions = null;
         _station = null;
         _card = null;
@@ -401,9 +452,9 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
-        _fast.Stop();
-        _slow.Stop();
-        _retry.Stop();
+        _fast.Dispose();
+        _slow.Dispose();
+        _retry.Dispose();
         _beacon.Dispose();
         await StopAsync();
     }
@@ -523,62 +574,28 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
             : new Passband(centre - 1300, centre + 1300, $"0 {mode}", []);
     }
 
-    private async Task ApplyHygieneAsync(InterfaceSettings settings)
+    private void OpenLevels(ILevelControl? receive, ILevelControl? transmit)
     {
-        var remaining = new List<string>();
-        foreach ((string? id, AudioFlow flow) in new[] { (settings.CaptureEndpointId, AudioFlow.Capture), (settings.RenderEndpointId, AudioFlow.Render) })
+        if (receive is null || transmit is null)
         {
-            if (id is null)
-            {
-                continue;
-            }
-
-            IReadOnlyList<EndpointIssue> found = await Task.Run(() => EndpointHygiene.Check(id, flow));
-            if (found.Count == 0)
-            {
-                continue;
-            }
-
-            foreach (EndpointIssue issue in found.Where(i => i.CanFix))
-            {
-                Sessions.Console.Note($"fixed {(flow == AudioFlow.Capture ? "receive" : "transmit")} audio: {issue.Description}");
-            }
-
-            IReadOnlyList<EndpointIssue> left = await Task.Run(() => EndpointHygiene.Fix(id, flow));
-            remaining.AddRange(left.Select(i => i.Description));
+            receive?.Dispose();
+            transmit?.Dispose();
+            LevelsAvailable = false;
+            return;
         }
 
-        HygieneWarning = remaining.Count == 0 ? null : string.Join(" ", remaining);
-        foreach (string text in remaining)
-        {
-            Sessions.Console.Note("check: " + text);
-        }
-    }
-
-    private void OpenLevels(InterfaceSettings settings)
-    {
         _applyingLevels = true;
         try
         {
-            _rxLevel = EndpointLevel.Open(settings.CaptureEndpointId!);
-            _txLevel = EndpointLevel.Open(settings.RenderEndpointId!);
-            if (settings.CaptureLevelDb is { } rx)
-            {
-                _rxLevel.LevelDb = rx;
-            }
-
-            if (settings.RenderLevelDb is { } tx)
-            {
-                _txLevel.LevelDb = tx;
-            }
-
-            RxMinDb = Math.Max(_rxLevel.MinDb, -60);
-            RxMaxDb = _rxLevel.CeilingDb;
-            TxMinDb = Math.Max(_txLevel.MinDb, -60);
-            TxMaxDb = _txLevel.CeilingDb;
+            _rxLevel = receive;
+            _txLevel = transmit;
+            RxMinDb = Math.Max(receive.MinDb, -60);
+            RxMaxDb = receive.CeilingDb;
+            TxMinDb = Math.Max(transmit.MinDb, -60);
+            TxMaxDb = transmit.CeilingDb;
             ReadLevels();
-            _rxLevel.Changed += () => OnUi(ReadLevels);
-            _txLevel.Changed += () => OnUi(ReadLevels);
+            receive.Changed += () => OnUi(ReadLevels);
+            transmit.Changed += () => OnUi(ReadLevels);
             LevelsAvailable = true;
         }
         finally
@@ -680,7 +697,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
 
     private async Task RetryAsync()
     {
-        if (Status == StationStatus.Fault && !_starting)
+        if (_retryArmed && Status == StationStatus.Fault && !_starting)
         {
             await StartAsync();
         }
@@ -691,10 +708,7 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         Status = StationStatus.Fault;
         StatusText = text;
         Sessions.Console.Note(text);
-        if (retry)
-        {
-            _retry.Start();
-        }
+        _retryArmed = retry;
     }
 
     private void Note(StationNotice notice)
@@ -740,15 +754,5 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
         }
     }
 
-    private void OnUi(Action action)
-    {
-        if (_ui.CheckAccess())
-        {
-            action();
-        }
-        else
-        {
-            _ui.BeginInvoke(action);
-        }
-    }
+    private void OnUi(Action action) => _ui.Run(action);
 }

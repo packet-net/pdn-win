@@ -11,10 +11,10 @@ public partial class SettingsWindow : Window
     private readonly SettingsViewModel _model;
 
     /// <summary>Opens the dialog on <paramref name="settings"/>.</summary>
-    public SettingsWindow(AppSettings settings)
+    public SettingsWindow(AppSettings settings, Hosting.IStationHardware? hardware)
     {
         InitializeComponent();
-        _model = new SettingsViewModel(settings);
+        _model = new SettingsViewModel(settings, hardware);
         DataContext = _model;
         _model.PropertyChanged += OnChanged;
         Loaded += async (_, _) =>
