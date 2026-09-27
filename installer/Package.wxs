@@ -2,7 +2,7 @@
   <!-- UpgradeCode must never change: it is how a new version finds and replaces the old one. -->
   <Package Name="pdn-win" Manufacturer="Packet.NET" Version="$(var.ProductVersion)"
            UpgradeCode="afea74a2-b78f-40d2-a4a9-2045c1b6cfe1" Scope="perMachine" Compressed="yes">
-    <SummaryInformation Description="pdn-win: Windows packet radio terminal" />
+    <SummaryInformation Description="pdn-win: packet radio terminal" />
     <MajorUpgrade DowngradeErrorMessage="A newer version of pdn-win is already installed." />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
 

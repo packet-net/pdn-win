@@ -28,7 +28,9 @@ jobs:
         run: dotnet build pdn-win.slnx -c Release
 
       - name: Test
-        run: dotnet test tests/PdnWin.Core.Tests -c Release --no-build
+        run: |
+          dotnet test tests/PdnWin.Core.Tests -c Release --no-build
+          dotnet test tests/PdnWin.Tests -c Release --no-build
 
   linux:
     runs-on: ubuntu-latest
@@ -43,7 +45,9 @@ jobs:
         run: dotnet build pdn-win.slnx -c Release
 
       - name: Test
-        run: dotnet test tests/PdnWin.Core.Tests -c Release --no-build
+        run: |
+          dotnet test tests/PdnWin.Core.Tests -c Release --no-build
+          dotnet test tests/PdnWin.Tests -c Release --no-build
 
       - name: Package (amd64)
         run: packaging/linux/build-deb.sh 0.0.0-ci amd64 dist

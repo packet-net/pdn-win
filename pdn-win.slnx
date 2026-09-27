@@ -8,5 +8,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/PdnWin.Core.Tests/PdnWin.Core.Tests.csproj" />
+    <Project Path="tests/PdnWin.Tests/PdnWin.Tests.csproj" />
   </Folder>
 </Solution>

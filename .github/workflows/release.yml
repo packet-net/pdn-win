@@ -1,11 +1,21 @@
 name: Release
 
-# Push a version tag (x.y.z, no "v") to build, test and publish a GitHub Release named "x.y.z" with
-# two assets: the MSI and the portable single-file exe. The notes come from the "## x.y.z" section
-# of CHANGELOG.md, which must exist for a tag build. See docs/releasing.md for the procedure.
+# Push a version tag (x.y.z, no "v") to build, test and publish a GitHub Release named "x.y.z":
 #
-# Run it by hand (Actions > Release > Run workflow) for a dry run: the same build, uploaded as a
-# workflow artifact, and no release.
+#   pdn-win-x.y.z-win-x64.msi               Windows installer (framework-dependent exe inside)
+#   pdn-win-x.y.z-win-x64-portable.exe      Windows, one self-contained file
+#   pdn-lin_x.y.z_amd64.deb, _arm64.deb     Linux packages, which packet-net/apt then serves
+#   pdn-lin-x.y.z-linux-x64.tar.gz, -arm64  Linux, self-contained, for other distributions
+#   SHA256SUMS
+#
+# The notes come from the "## x.y.z" section of CHANGELOG.md, which must exist for a tag build. See
+# docs/releasing.md for the procedure.
+#
+# Run it by hand (Actions > Release > Run workflow) for a dry run: the same builds, uploaded as
+# workflow artifacts, and no release.
+#
+# GitHub-hosted runners throughout: a public repository, where they are free, and the Windows
+# assets need Windows. The publish job only moves files.
 
 on:
   push:
@@ -22,11 +32,13 @@ permissions:
   contents: write
 
 jobs:
-  release:
+  windows:
     runs-on: windows-latest
     defaults:
       run:
         shell: pwsh
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -52,28 +64,111 @@ jobs:
           }
 
       - name: Test
-        run: dotnet test tests/PdnWin.Core.Tests -c Release
+        run: |
+          dotnet test tests/PdnWin.Core.Tests -c Release
+          dotnet test tests/PdnWin.Tests -c Release
 
       - name: Build MSI and portable exe
         run: ./build/build-release.ps1 -Version '${{ steps.version.outputs.version }}'
 
       - name: Release notes
-        run: ./build/release-notes.ps1 -Version '${{ steps.version.outputs.version }}' -Ref '${{ github.ref_type == 'tag' && github.ref_name || 'HEAD' }}' -OutFile notes.md
+        run: ./build/release-notes.ps1 -Version '${{ steps.version.outputs.version }}' -Ref '${{ github.ref_type == 'tag' && github.ref_name || 'HEAD' }}' -OutFile dist/notes.md
 
-      - name: Upload dry-run build
-        if: github.ref_type != 'tag'
-        uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7
         with:
-          name: pdn-win-dry-run-${{ steps.version.outputs.version }}
-          path: |
-            dist/
-            notes.md
+          name: windows
+          path: dist/
+          if-no-files-found: error
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Work out version
+        id: version
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then v="$GITHUB_REF_NAME"; else v='${{ inputs.version }}'; fi
+          [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::version must be x.y.z (got '$v')"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        run: |
+          dotnet test tests/PdnWin.Core.Tests -c Release
+          dotnet test tests/PdnWin.Tests -c Release
+
+      - name: Build the packages
+        run: |
+          set -euo pipefail
+          # The changelog date inside each .deb follows the commit, so a rebuild of a tag is the same.
+          export SOURCE_DATE_EPOCH="$(git log -1 --format=%ct)"
+          for arch in amd64 arm64; do
+            echo "::group::$arch"
+            packaging/linux/build-deb.sh '${{ steps.version.outputs.version }}' "$arch" dist
+            echo "::endgroup::"
+          done
+
+      - name: Check the packages
+        run: |
+          set -euo pipefail
+          for deb in dist/*.deb; do
+            echo "::group::$(basename "$deb")"
+            packaging/linux/check-deb.sh "$deb"
+            echo "::endgroup::"
+          done
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: linux
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    needs: [windows, linux]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: dist
+        run: |
+          sha256sum *.msi *.exe *.deb *.tar.gz > SHA256SUMS
+          cat SHA256SUMS
 
       - name: Publish release
-        if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v3
         with:
-          name: ${{ steps.version.outputs.version }}
-          body_path: notes.md
-          files: dist/*
+          name: ${{ needs.windows.outputs.version }}
+          body_path: dist/notes.md
+          files: |
+            dist/*.msi
+            dist/*.exe
+            dist/*.deb
+            dist/*.tar.gz
+            dist/SHA256SUMS
           fail_on_unmatched_files: true
+
+      # Last, and only after the release has its assets: packet-net/apt indexes whatever is on
+      # releases/latest of every repo it lists, so it has to be told once the .debs are there. A
+      # failure here is a failure of the release (the apt repo's own rule), not something to ship
+      # quietly with apt a version behind until its daily rebuild.
+      - name: Tell the apt repo to rebuild
+        env:
+          GH_TOKEN: ${{ secrets.APT_DISPATCH_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::APT_DISPATCH_TOKEN is not visible to this repo - cannot notify packet-net/apt"
+            exit 1
+          fi
+          payload=$(printf '{"event_type":"release-published","client_payload":{"repo":"%s","tag":"%s"}}' \
+            "$GITHUB_REPOSITORY" "$TAG")
+          printf '%s' "$payload" | gh api -X POST repos/packet-net/apt/dispatches --input -
