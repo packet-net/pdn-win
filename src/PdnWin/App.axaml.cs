@@ -7,6 +7,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using PdnWin.Core;
 using PdnWin.Core.Settings;
+using PdnWin.Core.Updates;
 using PdnWin.Hardware;
 using PdnWin.Hosting;
 using PdnWin.ViewModels;
@@ -38,6 +39,12 @@ public partial class App : Application
                 : null;
             var model = new MainViewModel(store, new AvaloniaUiThread(), hardware) { Simulate = simulate, DemoScript = args.Contains("--demo", StringComparer.OrdinalIgnoreCase) ? MainViewModel.DefaultDemo : null };
             desktop.MainWindow = new Views.MainWindow(model);
+
+            // Look for a newer release now and then; what it finds goes in the title bar.
+            var updates = new UpdateCheck(model.Version);
+            updates.Found += model.UpdateFound;
+            updates.Start();
+            desktop.Exit += (_, _) => updates.Dispose();
             Snapshots.StartIfRequested();
         }
 

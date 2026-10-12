@@ -1,10 +1,12 @@
 using Avalonia.Controls;
+using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using PdnWin.App;
 using PdnWin.App.Controls;
 using PdnWin.App.Views;
 using PdnWin.Core;
 using PdnWin.Core.Settings;
+using PdnWin.Core.Updates;
 using PdnWin.Hosting;
 using PdnWin.ViewModels;
 
@@ -41,6 +43,37 @@ public sealed class WindowTests(Ui ui) : IDisposable
             window.GetVisualDescendants().OfType<WaterfallView>().Should().ContainSingle();
             window.GetVisualDescendants().OfType<LogList>().Should().NotBeEmpty("the monitor and the console transcript");
             window.GetVisualDescendants().OfType<TextBox>().Should().Contain(t => t.Name == "Line", "the input line");
+        }
+        finally
+        {
+            await model.DisposeAsync();
+            window.Close();
+        }
+    });
+
+    [Fact]
+    public Task A_newer_release_shows_in_the_title_bar_with_how_to_get_it() => ui.Run(async () =>
+    {
+        var model = new MainViewModel(Store(new AppSettings()), new AvaloniaUiThread(), hardware: null) { Simulate = true };
+        var window = new MainWindow(model);
+        window.Show();
+        Ui.Settle();
+
+        try
+        {
+            Button update = window.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "UpdateButton");
+            update.IsVisible.Should().BeFalse("nothing has been found");
+
+            model.UpdateFound(new AvailableUpdate("0.3.0", "0.3.1", UpdateCheck.ReleasesUrl + "/tag/0.3.1", UpdateCheck.AptCommand));
+            Ui.Settle();
+
+            update.IsVisible.Should().BeTrue();
+            update.Flyout!.ShowAt(update);
+            Ui.Settle();
+            var texts = ((Control)((Flyout)update.Flyout).Content!).GetLogicalDescendants().OfType<TextBlock>().ToList();
+            texts.Should().Contain(t => t.Text == UpdateCheck.AptCommand);
+            texts.Should().Contain(t => t.Inlines!.Count > 0 && t.Inlines.Text!.Contains("0.3.1 is out. You have 0.3.0.", StringComparison.Ordinal));
+            model.Sessions.Console.Lines.Should().Contain(l => l.Text.Contains("0.3.1 is available", StringComparison.Ordinal));
         }
         finally
         {

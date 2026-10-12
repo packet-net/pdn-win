@@ -5,6 +5,16 @@ with the version it shipped in; when something is decided, write it here.
 
 ## Done
 
+### Unreleased
+
+- **Update check.** `UpdateCheck` (Core) reads the packet-net apt index for `pdn-lin` about 30 s
+  after start and then daily, on Windows too: one release carries both platforms and updates the
+  index only after the GitHub release is out, so that version is right for both. Always on, no
+  setting, never installs, quiet on failure, and a `0.0.0-dev` build never looks (as
+  pdn-soundmodem's own check, #682 there). A newer version shows as a pill beside the version in
+  the title bar, with a flyout: the apt command and a Copy button where the machine's apt sources
+  name the repository, the release page everywhere.
+
 ### 0.3.0 (carrier sense, settings that apply, the ecosystem catch-up)
 
 - **Carrier sense, found and fixed.** The replies held on air (6.5 s on the Linux run, and 5 to

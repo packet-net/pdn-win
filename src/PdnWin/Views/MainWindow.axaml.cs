@@ -6,6 +6,7 @@ using Avalonia.Data;
 using Avalonia.Data.Converters;
 using Avalonia.Automation;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
@@ -84,6 +85,20 @@ public partial class MainWindow : Window
             }
         };
         this.FindControl<Button>("ViewButton")!.Click += (s, _) => ShowViewMenu((Control)s!);
+        this.FindControl<Button>("ReleasePageButton")!.Click += async (_, _) =>
+        {
+            if (model.Update is { } update)
+            {
+                await Launcher.LaunchUriAsync(new Uri(update.ReleaseUrl));
+            }
+        };
+        this.FindControl<Button>("CopyAptButton")!.Click += async (_, _) =>
+        {
+            if (model.Update?.AptCommand is { } command && Clipboard is { } clipboard)
+            {
+                await clipboard.SetTextAsync(command);
+            }
+        };
 
         Opened += async (_, _) =>
         {

@@ -11,6 +11,7 @@ using PdnWin.Core.Settings;
 using PdnWin.Core.Stations;
 using PdnWin.Core.Stations.Simulation;
 using PdnWin.Core.Stations.SoundModem;
+using PdnWin.Core.Updates;
 using PdnWin.Hosting;
 using PdnWin.Presentation;
 
@@ -151,6 +152,11 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     [ObservableProperty]
     private string? _hygieneWarning;
 
+    /// <summary>A newer release than this one, once the update check has found it; null until then.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(UpdateAdvice))]
+    private AvailableUpdate? _update;
+
     /// <summary>Creates the view model; <see cref="StartAsync"/> puts the station on.</summary>
     /// <param name="store">Where settings live.</param>
     /// <param name="ui">The front-end's UI thread.</param>
@@ -224,6 +230,31 @@ public sealed partial class MainViewModel : ObservableObject, IAsyncDisposable
     public string Version { get; } =
         (System.Reflection.CustomAttributeExtensions.GetCustomAttribute<System.Reflection.AssemblyInformationalVersionAttribute>(typeof(MainViewModel).Assembly)
             ?.InformationalVersion ?? "dev").Split('+')[0];
+
+    /// <summary>How to get <see cref="Update"/> here, beside the apt command when there is one.</summary>
+    public string UpdateAdvice => Update switch
+    {
+        null => string.Empty,
+        { AptCommand: not null } => "You installed it from the packet-net apt repository, so this upgrades it:",
+        _ when OperatingSystem.IsWindows() => "Download the installer (.msi) or the portable .exe from the release page. The installer upgrades this one in place.",
+        _ => "Download the .deb or the tarball from the release page, or install from the packet-net apt repository and it updates with the rest of the system.",
+    };
+
+    /// <summary>Takes what the update check found (from any thread): shown in the title bar, and
+    /// said once in the console.</summary>
+    public void UpdateFound(AvailableUpdate update)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        OnUi(() =>
+        {
+            if (Update?.Available != update.Available)
+            {
+                Sessions.Console.Note($"{ProductName} {update.Available} is available (you have {update.Installed}); see the title bar");
+            }
+
+            Update = update;
+        });
+    }
 
     /// <summary>Whether the station is up.</summary>
     public bool IsLive => Status == StationStatus.Live;

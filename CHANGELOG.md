@@ -5,6 +5,15 @@ Each release's notes are its section here, taken word for word by the release pi
 operator: what they can now do, what changed that they will notice, what was fixed. See
 [docs/releasing.md](docs/releasing.md).
 
+## Unreleased
+
+- **It tells you when a new version is out.** A little after it starts, and then once a day, it
+  looks for a newer release. When there is one, "0.x.y available" appears beside the version in the
+  title bar, and a line in the console. Click it for what to do: on Windows, the release page with
+  the installer; on Linux, the apt command to copy if you installed from the packet-net apt
+  repository, or the release page if not. It never installs anything itself, and says nothing when
+  it cannot find out.
+
 ## 0.3.0
 
 - **Replies go when the channel is clear, not ten seconds later.** On an FM radio with its squelch

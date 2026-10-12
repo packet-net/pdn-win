@@ -21,6 +21,32 @@
                 </TextBlock>
                 <TextBlock Text="{Binding Version}" FontFamily="{StaticResource Mono}" FontSize="10" Foreground="#4A5563"
                            VerticalAlignment="Center" Margin="7,2,0,0" />
+                <Button x:Name="UpdateButton" Classes="ghost" Margin="8,0,0,0" Padding="7,1" VerticalAlignment="Center"
+                        IsVisible="{Binding Update, Converter={x:Static ObjectConverters.IsNotNull}}"
+                        ToolTip.Tip="A newer version is out" AutomationProperties.Name="Update available">
+                    <Border Background="{StaticResource AmberGlass}" BorderBrush="{StaticResource AmberDim}" BorderThickness="1" CornerRadius="9" Padding="7,1">
+                        <TextBlock FontSize="11" Foreground="{StaticResource Amber}">
+                            <Run Text="{Binding Update.Available}" /><Run Text=" available" />
+                        </TextBlock>
+                    </Border>
+                    <Button.Flyout>
+                        <Flyout Placement="BottomEdgeAlignedLeft">
+                            <StackPanel Width="410" Spacing="10" Margin="4">
+                                <TextBlock FontWeight="SemiBold" TextWrapping="Wrap">
+                                    <Run Text="{Binding ProductName}" /><Run Text=" " /><Run Text="{Binding Update.Available}" /><Run Text=" is out. You have " /><Run Text="{Binding Update.Installed}" /><Run Text="." />
+                                </TextBlock>
+                                <TextBlock Text="{Binding UpdateAdvice}" TextWrapping="Wrap" Foreground="{StaticResource Muted}" />
+                                <SelectableTextBlock Text="{Binding Update.AptCommand}" FontFamily="{StaticResource Mono}" FontSize="11"
+                                                     IsVisible="{Binding Update.AptCommand, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}" />
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <Button x:Name="CopyAptButton" Content="Copy the command" AutomationProperties.Name="Copy command"
+                                            IsVisible="{Binding Update.AptCommand, Converter={x:Static ObjectConverters.IsNotNull}, FallbackValue=False}" />
+                                    <Button x:Name="ReleasePageButton" Content="Open the release page" AutomationProperties.Name="Release page" />
+                                </StackPanel>
+                            </StackPanel>
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
 
                 <Border x:Name="Pill" Margin="18,0,0,0" CornerRadius="11" Padding="9,3,11,3" Background="#0FFFFFFF" VerticalAlignment="Center"
                         ToolTip.Tip="{Binding StatusText}">
