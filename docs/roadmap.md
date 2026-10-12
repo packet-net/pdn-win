@@ -5,7 +5,7 @@ with the version it shipped in; when something is decided, write it here.
 
 ## Done
 
-### Unreleased
+### 0.4.0 (the update check)
 
 - **Update check.** `UpdateCheck` (Core) reads the packet-net apt index for `pdn-lin` about 30 s
   after start and then daily, on Windows too: one release carries both platforms and updates the

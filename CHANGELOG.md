@@ -5,7 +5,7 @@ Each release's notes are its section here, taken word for word by the release pi
 operator: what they can now do, what changed that they will notice, what was fixed. See
 [docs/releasing.md](docs/releasing.md).
 
-## Unreleased
+## 0.4.0
 
 - **It tells you when a new version is out.** A little after it starts, and then once a day, it
   looks for a newer release. When there is one, "0.x.y available" appears beside the version in the
