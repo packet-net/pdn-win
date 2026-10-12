@@ -5,7 +5,7 @@ with the version it shipped in; when something is decided, write it here.
 
 ## Done
 
-### Unreleased (on branch feedback/0.2.1)
+### 0.3.0 (carrier sense, settings that apply, the ecosystem catch-up)
 
 - **Carrier sense, found and fixed.** The replies held on air (6.5 s on the Linux run, and 5 to
   18 s while GB7RDG and M9YYY-9 exchanged frames, with some never sent) were the channel's energy
@@ -29,6 +29,10 @@ with the version it shipped in; when something is decided, write it here.
 - **The UI tests test.** `Ui.Run` handed Avalonia's headless `Dispatch` a `Func<Task>`, which it
   took as a function returning a value, so an async UI test finished at its first await and any
   assertion after that went unseen. It now uses the overload that pumps until the task is done.
+- **Dependencies caught up** with the rest of packet-net: packet.net 0.41.0 -> 0.54.0 (the
+  crossed-dial and repeated SABM/UA link fixes, an over-N1 DL-DATA split rather than sent
+  oversize), pdn-soundmodem 0.83.0 -> 0.89.1, Avalonia 12.1.4, System.IO.Ports 10.0.12. No source
+  change was needed. pdn-soundmodem is now AGPL-3.0-or-later, its GPL parts kept GPL.
 
 ### 0.2.0 (pdn-lin: the same app on Linux)
 
