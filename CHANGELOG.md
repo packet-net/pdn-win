@@ -5,7 +5,7 @@ Each release's notes are its section here, taken word for word by the release pi
 operator: what they can now do, what changed that they will notice, what was fixed. See
 [docs/releasing.md](docs/releasing.md).
 
-## Unreleased
+## 0.3.0
 
 - **Replies go when the channel is clear, not ten seconds later.** On an FM radio with its squelch
   open, the station took the channel to be busy for about ten seconds after everything it heard,
@@ -22,6 +22,10 @@ operator: what they can now do, what changed that they will notice, what was fix
   its slot or raises its persistence takes the channel from the rest. They are fixed at the usual
   63 and 100 ms, including where an earlier version saved something else. TXDELAY and TXTAIL,
   which suit your radio, stay.
+- **Steadier links.** pdn-win now runs on packet.net 0.54 and pdn-soundmodem 0.89.1. The link no
+  longer resets when a SABM or UA is heard twice, or when you and the other station call each other
+  at once; a connect made while the other station is already calling you keeps its session; and a
+  frame longer than PACLEN is split rather than sent oversize.
 
 ## 0.2.0
 
