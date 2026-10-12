@@ -80,7 +80,10 @@ public sealed class UpdateCheck : IDisposable
             return;
         }
 
-        _timer = _time.CreateTimer(_ => _ = CheckOnceAsync(_stop.Token), null, FirstDelay, Every);
+        // Taken once here: a look that fires as the app closes must not read the token from a
+        // source Dispose has already disposed.
+        CancellationToken stop = _stop.Token;
+        _timer = _time.CreateTimer(_ => _ = CheckOnceAsync(stop), null, FirstDelay, Every);
     }
 
     /// <summary>One look. Never throws, but for <paramref name="cancellation"/>.</summary>
