@@ -55,7 +55,7 @@ to bump.
    git tag x.y.z
    git push origin x.y.z
    ```
-5. **Watch the run** (`gh run watch`) and check the release page: name `x.y.z`, the nine files
+5. **Watch the run** (`gh run watch`) and check the release page: name `x.y.z`, the seven files
    (MSI, portable exe, two `.deb`s, two tarballs, `SHA256SUMS`), the notes as written. A minute
    later `https://packet-net.github.io/apt/Packages` lists `pdn-lin` at `x.y.z`.
 
