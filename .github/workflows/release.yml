@@ -71,6 +71,11 @@ jobs:
       - name: Build MSI and portable exe
         run: ./build/build-release.ps1 -Version '${{ steps.version.outputs.version }}'
 
+      # The portable exe is self-contained, so its runtime is the build machine's SDK's. The MSI is
+      # framework-dependent and carries none, so there is nothing in it to check.
+      - name: Check the bundled .NET runtime is the latest patch
+        run: python build/check-bundled-runtime.py "dist/pdn-win-${{ steps.version.outputs.version }}-win-x64-portable.exe"
+
       - name: Release notes
         run: ./build/release-notes.ps1 -Version '${{ steps.version.outputs.version }}' -Ref '${{ github.ref_type == 'tag' && github.ref_name || 'HEAD' }}' -OutFile dist/notes.md
 
@@ -120,6 +125,11 @@ jobs:
             packaging/linux/check-deb.sh "$deb"
             echo "::endgroup::"
           done
+
+      # Self-contained, so the runtime in each package is the SDK's that built it, and a stale one
+      # ships old security fixes. Fail the release instead.
+      - name: Check the bundled .NET runtime is the latest patch
+        run: python3 build/check-bundled-runtime.py dist/*.deb dist/*.tar.gz
 
       - uses: actions/upload-artifact@v7
         with:
