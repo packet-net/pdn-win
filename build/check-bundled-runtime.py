@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""Fails unless every package bundles the latest .NET 10 runtime patch.
+"""Fails if any package bundles a .NET 10 runtime older than the latest patch.
 
 The programs are self-contained, so each package carries the runtime of whichever SDK built it,
 and an operating system update never patches it. A build machine with a stale SDK would ship
 months of missed security fixes and nothing would notice. This reads the runtime version out of
 each package's program and compares it with the latest 10.0 runtime Microsoft lists.
+
+A runtime newer than the latest the index lists passes: SDK workloads can reach nuget.org a few
+days before the release index lists that patch (10.0.14 on 2026-10-25, which failed another
+packet-net release), and the point is to catch a stale build machine, not one ahead of the index.
+It fails when a program bundles an older runtime, or zero or several recognisable versions.
 
 Usage: build/check-bundled-runtime.py <package.deb|package.tar.gz|pdn-win.exe>...
 """
@@ -30,6 +35,10 @@ def latest_runtime():
         if channel["channel-version"] == CHANNEL:
             return channel["latest-runtime"]
     sys.exit(f"no .NET {CHANNEL} channel in {INDEX}")
+
+
+def version_key(version):
+    return tuple(int(part) for part in version.split("."))
 
 
 def program_bytes(package):
@@ -60,9 +69,13 @@ def main(packages):
         for name, data in programs:
             found = sorted({m.decode() for m in RUNTIME.findall(data)})
             print(f"{package.name}: {name} bundles {', '.join(found) or 'nothing recognisable'}")
-            if found != [want]:
+            if len(found) != 1:
                 print(f"::error::{package.name} bundles .NET runtime {', '.join(found) or 'unknown'}, "
-                      f"not {want}. Update the .NET 10 SDK on the machine that built it.")
+                      "not one recognisable version. Check how the program was built.")
+                bad = True
+            elif version_key(found[0]) < version_key(want):
+                print(f"::error::{package.name} bundles .NET runtime {found[0]}, older than {want}. "
+                      "Update the .NET 10 SDK on the machine that built it.")
                 bad = True
     return 1 if bad else 0
 
