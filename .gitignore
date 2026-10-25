@@ -6,3 +6,4 @@ publish/
 dist/
 notes.md
 TestResults/
+__pycache__/
