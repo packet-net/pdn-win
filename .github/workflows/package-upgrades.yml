@@ -1,0 +1,81 @@
+name: package upgrades
+
+# Mirrors the windows-latest job of ci.yml. Runs on GitHub-hosted runners, as CI does.
+
+on:
+  schedule:
+    - cron: '41 3 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: package-upgrades
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  upgrade:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Upgrade, build and test
+        id: full
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Windows runners have python, and python3 is not guaranteed on PATH.
+          PY=python3; command -v python3 >/dev/null 2>&1 || PY=python
+          "$PY" scripts/bump-packages.py pdn-win.slnx | tee "$RUNNER_TEMP/upgrades.txt"
+          dotnet restore --no-http-cache
+          dotnet build pdn-win.slnx -c Release --no-restore
+          dotnet test tests/PdnWin.Core.Tests -c Release --no-build
+          dotnet test tests/PdnWin.Tests -c Release --no-build
+
+      - name: Security pass (only when the full upgrade failed)
+        id: security
+        if: steps.full.outcome == 'failure'
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Drop the failed attempt's edits so the security pass starts from the committed tree.
+          git reset --hard
+          git clean -fdx -e .dotnet
+          PY=python3; command -v python3 >/dev/null 2>&1 || PY=python
+          "$PY" scripts/bump-packages.py pdn-win.slnx --vulnerable-only | tee "$RUNNER_TEMP/upgrades.txt"
+          dotnet restore --no-http-cache
+          dotnet build pdn-win.slnx -c Release --no-restore
+          dotnet test tests/PdnWin.Core.Tests -c Release --no-build
+          dotnet test tests/PdnWin.Tests -c Release --no-build
+
+      - name: Commit and push on a green build
+        if: success()
+        shell: bash
+        env:
+          SUBJECT: "${{ steps.full.outcome == 'failure' && 'chore(deps): security package fixes' || 'chore(deps): package upgrades' }}"
+        run: |
+          set -euo pipefail
+          # Untracked build leftovers are not changes; the script only edits tracked files.
+          if [ -z "$(git status --porcelain --untracked-files=no)" ]; then
+            echo "nothing to upgrade"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -u
+          {
+            echo "$SUBJECT"
+            echo
+            echo "Package versions changed by scripts/bump-packages.py:"
+            cat "$RUNNER_TEMP/upgrades.txt"
+          } > "$RUNNER_TEMP/commit-message.txt"
+          git commit -F "$RUNNER_TEMP/commit-message.txt"
+          git pull --rebase origin main
+          git push origin HEAD:main
