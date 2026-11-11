@@ -16,10 +16,14 @@ permissions:
 
 jobs:
   upgrade:
+    # The Linux package (packaging/linux/build-deb.sh) is not checked here.
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Always the default branch: a manual run from a feature branch must not push it to main.
+          ref: main
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -31,8 +35,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Windows runners have python, and python3 is not guaranteed on PATH.
-          PY=python3; command -v python3 >/dev/null 2>&1 || PY=python
+          # Probe by running: a bare python can be a Windows Store alias stub that exists but does nothing.
+          PY=python3; for c in python python3; do if "$c" -c "import sys" >/dev/null 2>&1; then PY=$c; break; fi; done
           "$PY" scripts/bump-packages.py pdn-win.slnx | tee "$RUNNER_TEMP/upgrades.txt"
           dotnet restore --no-http-cache
           dotnet build pdn-win.slnx -c Release --no-restore
@@ -48,7 +52,7 @@ jobs:
           # Drop the failed attempt's edits so the security pass starts from the committed tree.
           git reset --hard
           git clean -fdx -e .dotnet
-          PY=python3; command -v python3 >/dev/null 2>&1 || PY=python
+          PY=python3; for c in python python3; do if "$c" -c "import sys" >/dev/null 2>&1; then PY=$c; break; fi; done
           "$PY" scripts/bump-packages.py pdn-win.slnx --vulnerable-only | tee "$RUNNER_TEMP/upgrades.txt"
           dotnet restore --no-http-cache
           dotnet build pdn-win.slnx -c Release --no-restore
