@@ -1,0 +1,92 @@
+name: package upgrades test
+
+# Called by package-upgrades.yml. Applies one bump diff (full or security-only) to the pinned commit
+# and runs the Windows build and tests and the Linux build, tests and .deb check, as ci.yml does.
+# GitHub-hosted runners, as CI does.
+
+on:
+  workflow_call:
+    inputs:
+      variant:
+        description: "Name of the diff artifact to apply (full or security)"
+        required: true
+        type: string
+      sha:
+        description: "Commit the diff was computed against"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: bump-${{ inputs.variant }}
+          path: ${{ runner.temp }}/bump
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Apply the bump
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The Windows checkout may have CRLF endings; the diff was made on Linux.
+          if [ -s "$RUNNER_TEMP/bump/bump.diff" ]; then git apply --ignore-whitespace "$RUNNER_TEMP/bump/bump.diff"; fi
+
+      - name: Build and test
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet restore --no-http-cache
+          dotnet build pdn-win.slnx -c Release --no-restore
+          dotnet test tests/PdnWin.Core.Tests -c Release --no-build
+          dotnet test tests/PdnWin.Tests -c Release --no-build
+
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha }}
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: bump-${{ inputs.variant }}
+          path: ${{ runner.temp }}/bump
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Apply the bump
+        run: |
+          set -euo pipefail
+          if [ -s "$RUNNER_TEMP/bump/bump.diff" ]; then git apply "$RUNNER_TEMP/bump/bump.diff"; fi
+
+      - name: Build
+        run: |
+          dotnet restore --no-http-cache
+          dotnet build pdn-win.slnx -c Release --no-restore
+
+      - name: Test
+        run: |
+          dotnet test tests/PdnWin.Core.Tests -c Release --no-build
+          dotnet test tests/PdnWin.Tests -c Release --no-build
+
+      - name: Package (amd64)
+        run: packaging/linux/build-deb.sh 0.0.0-ci amd64 dist
+
+      - name: Check the package
+        run: packaging/linux/check-deb.sh dist/pdn-lin_0.0.0-ci_amd64.deb
